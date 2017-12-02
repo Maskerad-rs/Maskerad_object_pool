@@ -1,0 +1,10 @@
+[package]
+name = "maskerad_memory_allocator"
+version = "0.1.0"
+authors = ["Malkaviel - Maxime Capuano <maxime.capuano2@gmail.com>"]
+publish = false
+description = "A collection of memory allocators to deal with memory allocation more efficiently"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Maskerad-rs/Maskerad_memory_allocator.git"
+
+[dependencies]
