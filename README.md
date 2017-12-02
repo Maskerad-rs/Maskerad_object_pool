@@ -6,7 +6,10 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-Custom memory allocators to deal with heap allocations more efficiently
+Custom data structures to deal with heap allocations more efficiently.
+
+This library will provide stack-based allocators, first. Memory pools will probably come later,
+if the various [arena](https://doc.rust-lang.org/1.1.0/arena/struct.Arena.html) crates aren't enough.
 
 ## License
 
