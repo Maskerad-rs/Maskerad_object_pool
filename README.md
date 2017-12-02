@@ -1,7 +1,7 @@
 # Maskerad memory allocator
 
 [![codecov](https://codecov.io/gh/Maskerad-rs/Maskerad_memory_allocator/branch/master/graph/badge.svg)](https://codecov.io/gh/Maskerad-rs/Maskerad_memory_allocator)
-[![Build status](https://ci.appveyor.com/api/projects/status/rmbkq0i432lrxwri/branch/master?svg=true)](https://ci.appveyor.com/project/Malkaviel/maskerad-memory-allocator/branch/master)
+[![Build status](https://ci.appveyor.com/api/projects/status/cda7vb6lc6uqjn3t/branch/master?svg=true)](https://ci.appveyor.com/project/Malkaviel/maskerad-memory-allocator/branch/master)
 [![Build Status](https://travis-ci.org/Maskerad-rs/Maskerad_memory_allocator.svg?branch=master)](https://travis-ci.org/Maskerad-rs/Maskerad_memory_allocator)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
