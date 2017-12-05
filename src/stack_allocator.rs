@@ -86,6 +86,10 @@ impl StackAlloc {
         }
     }
 
+    fn reset(&mut self) {
+        self.current_offset = self.stack.ptr();
+    }
+
     //Allocate a new block of memory of the given size, FROM STACK TOP.
     unsafe fn alloc(&mut self, layout: Layout) -> Result<*mut u8, AllocErr> {
 
