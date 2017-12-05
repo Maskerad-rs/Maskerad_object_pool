@@ -12,6 +12,7 @@
 #![feature(unique)]
 #![feature(placement_new_protocol)]
 #![feature(placement_in)]
+#![feature(pointer_methods)]
 
 //TODO: create a custom allocator ? it looks like we don't need that.
 //TODO: maybe use an array, instead of a RawVec ? An array is on the stack, and a RawVec on the heap tho.
