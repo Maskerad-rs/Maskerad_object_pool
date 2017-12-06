@@ -6,13 +6,10 @@
 // copied, modified, or distributed except according to those terms.
 
 #![feature(alloc)]
-#![feature(placement_in_syntax)]
-#![feature(box_heap)]
 #![feature(allocator_api)]
 #![feature(unique)]
-#![feature(placement_new_protocol)]
-#![feature(placement_in)]
 #![feature(pointer_methods)]
+#![feature(offset_to)]
 
 //TODO: create a custom allocator ? it looks like we don't need that.
 //TODO: maybe use an array, instead of a RawVec ? An array is on the stack, and a RawVec on the heap tho.
@@ -71,7 +68,7 @@
 
 */
 
+
 extern crate alloc;
 extern crate core;
 pub mod stack_allocator;
-pub mod smart_pointer;

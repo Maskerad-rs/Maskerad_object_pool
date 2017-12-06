@@ -5,54 +5,17 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-//StackAllocator:
-// Like a Vec<T>, but not growable, have a marker, can only delete memory above the marker.
 
-use alloc::raw_vec::RawVec;
-use std::sync::Arc;
-use alloc::heap::Heap;
-use alloc::allocator::{Alloc, Layout, AllocErr};
-use core::ptr::Unique;
-use std::mem;
-use core::slice;
-//Control over memory alignment -> the Layout struct provide control over this stuff.
-
-//We'll use a RawVec -> alloc, dealloc, realloc a buffer of memory, with the heap allocator or a
-//custom one, without having to deal with corner cases.
-
-//We must handle the case of dropping the StackAllocator, RawVec drop the memory, but don't drop the content.
-
-//Our Vec will not be growable.
-
-//It look like we don't need to deal with alignment, the Layout, Heap and RawVec takes care of this mess.
-
-//Should we use StackAllocator<Box<Object>>, where Object : trait implemented by every gameobjects -> multiple type of objects in one data structure (dynamic dispatch) ?
-//or StackAllocator<T>, where T: Object -> only 1 type of object in one data structure (static dispatch, faster) ?
 /*
-pub struct StackAllocator<T> {
-    stack: RawVec<T>, //Use with_capacity(usize) -> The constructor takes care of the Layout struct and the alignment, according to the T type.
-    marker: usize,      //stack marker, represent the current top of the stack. you can only roll back to the marker, not to arbitrary locations.
-}
+            WARNING
+        Not usable.
+
 */
 
-//capacity : amount of space allocated for any future elements
-//length: number of acutal elements in the vec.
 
-
-//If we use dynamic dispatch, what's the size of the Box<Object> ?
-//See : https://doc.rust-lang.org/std/mem/fn.size_of.html and https://doc.rust-lang.org/std/mem/fn.align_of.html
-
-//For a struct :
-//  -   add the size of the field
-//  -   round up the current size to the nearest multiple of the next field's alignment.
-//  -   round the size of the struct to the nearest multiple of its alignment
-
-//size of a pointer
-//  -   size_of::<&i32>() == size_of::<Box<i32>>()
-//If we use dynamic dispatch, we calculate the alignment according to the size of a pointer (box, arc, &), since object-safe trait: ?Sized ?
-
-//With new(stack_size: usize), we should only specify the size, the allocation should happen with another function.
-
+use alloc::raw_vec::RawVec;
+use alloc::allocator::Layout;
+use core;
 
 //TODO: make a custom error type ?
 
@@ -90,39 +53,70 @@ impl StackAlloc {
         self.current_offset = self.stack.ptr();
     }
 
+    fn print_current_memory_status(&self) {
+        println!("Capacity: {}", self.stack.cap());
+        println!("Bottom ptr: {:?}", self.stack.ptr());
+        println!("Top ptr: {:?}", self.current_offset);
+        let cap_used = self.stack.ptr().offset_to(self.current_offset).unwrap() as usize; //We don't allocate zero typed objects
+        println!("Mem used: {}, mem left: {}", cap_used, self.stack.cap() - cap_used);
+    }
+
+    fn enough_space(&self, offset: usize) -> bool {
+        let cap_used = self.stack.ptr().offset_to(self.current_offset).unwrap() as usize; //We don't allocate zero typed objects
+        cap_used + offset < self.stack.cap()
+    }
+
     //Allocate a new block of memory of the given size, FROM STACK TOP.
-    unsafe fn alloc(&mut self, layout: Layout) -> Result<*mut u8, AllocErr> {
+    fn alloc<T>(&mut self, value: T) -> core::ptr::Unique<T> {
+        let layout = Layout::new::<T>();
+        let offset = layout.align() + layout.size();
+        assert!(self.enough_space(offset));
+        println!("Total amount of memory to allocate: {}", offset);
 
         assert_eq!((layout.align() & layout.align() - 1), 0); //power of 2.
 
         //Get the actual stack top. It will be the address returned.
         let old_stack_top = self.current_offset;
-
+        println!("address of the current stack top : {:?}", old_stack_top);
         //Determine the total amount of memory to allocate
-        let offset = layout.align() + layout.size();
 
-        //Get the ptr to the unaligned location
-        let unaligned_ptr = old_stack_top.offset(offset as isize) as usize;
+        unsafe {
+            //Get the ptr to the unaligned location
+            let unaligned_ptr = old_stack_top.offset(offset as isize) as usize;
+            println!("unaligned location: {:?}", unaligned_ptr as *mut u8);
+            //Now calculate the adjustment by masking off the lower bits of the address, to determine
+            //how "misaligned" it is.
+            let mask = layout.align() - 1;
+            println!("mask: {:x}", mask);
+            let misalignment = unaligned_ptr & mask;
+            println!("misalignment: {:x}", misalignment);
+            let adjustment = layout.align() - misalignment;
+            println!("adjustment: {:x}", adjustment);
+            //Get the adjusted address and store the adjustment in the byte preceding the adjusted address.
+            assert!(adjustment < 256);
+            let aligned_ptr = (unaligned_ptr + adjustment) as *mut u8;
+            println!("aligned ptr: {:?}", aligned_ptr);
+            //Now update the current_offset
+            self.current_offset = aligned_ptr;
 
-        //Now calculate the adjustment by masking off the lower bits of the address, to determine
-        //how "misaligned" it is.
-        let mask = (layout.align() - 1);
-        let misalignment = unaligned_ptr & mask;
-        let adjustment = layout.align() - misalignment;
+            //write the value in the memory location the old_stack_top is pointing.
+            core::ptr::write::<T>(old_stack_top as *mut T, value);
 
-        //Get the adjusted address and store the adjustment in the byte preceding the adjusted address.
-        assert!(adjustment < 256);
-        let aligned_ptr = (unaligned_ptr + adjustment) as *mut u8;
-
-        //Now update the current_offset
-        self.current_offset = aligned_ptr;
-
-        //Return the old_stack_top, it *should* have enough memory to place the data needed.
-        Ok(old_stack_top)
+            //Return the Unique ptr, pointing to the old stack top, where the value has been written.
+            core::ptr::Unique::new_unchecked(old_stack_top as *mut T)
+        }
     }
 
-    //TODO: for the alloc function, see how box is allocated on the heap.
-    //TODO: to 'push something on the stack, see vec.rs, it shows how to get the memory pointer we need for marker
+    //TODO: impl InPlace, BoxPlace, and Place ?
+    //TODO: impl Placer for ExchangeStackAllocSingleton ? Do we really need a singleton ?
+    //TODO: SEE THIS
+    //https://play.rust-lang.org/?gist=1560082065f1cafffd14&version=nightly
+    // https://github.com/pnkfelix/allocoll/blob/fe51b81a19859eaca22dd0300e42613e11369773/src/boxing.rs
+    // https://doc.rust-lang.org/stable/std/ops/trait.Place.html
+    // https://doc.rust-lang.org/stable/std/ops/trait.InPlace.html
+    // https://doc.rust-lang.org/stable/std/ops/trait.Placer.html
+    // https://www.reddit.com/r/rust/comments/3r8vqq/how_to_do_placement_allocation/
+    // https://internals.rust-lang.org/t/placement-nwbi-faq-new-box-in-left-arrow/2789
 }
 
 
@@ -134,22 +128,20 @@ mod stack_allocator_test {
     #[test]
     fn creation_with_right_capacity() {
         //create a StackAllocator with the specified size.
-        let test = in HEAP { 6 };
-    }
+        let mut alloc = StackAlloc::with_capacity(200);
+        alloc.print_current_memory_status();
+        let wat = alloc.alloc::<i32>(5);
+        alloc.print_current_memory_status();
 
-    fn get_marker() {
-        //get the position of the marker
+        println!("{}",unsafe { wat.as_ref() });
+        panic!()
     }
 
     fn allocate() {
 
     }
 
-    fn free_to_marker() {
-        //We deallocate everything above the marker
-    }
-
-    fn clear() {
+    fn reset() {
         //BE CAREFULE : RawVec drop the memory, not the content. We have to take care of it.
     }
 }
