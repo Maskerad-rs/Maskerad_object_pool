@@ -5,15 +5,11 @@ dist: trusty
 os:
   - linux
 
-#run builds for Rust nightly, Beta and stable
+#run builds for Rust nightly only.
 rust:
   - nightly
-  - beta
-  - stable
 
-matrix:
-  allow_failures:
-    - rust: nightly
+
 
 env:
   global:
