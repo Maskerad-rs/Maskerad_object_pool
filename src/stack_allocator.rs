@@ -41,6 +41,9 @@ Documentation used :
                         RUST DOCUMENTATION & SOURCE FILES
     boxed.rs, ptr.rs, raw_vec.rs, vec.rs, heap.rs, allocator.rs, place.rs, intrinsics.rs
 
+    Source code of the arena allocator.
+    https://github.com/rust-lang/rust/blob/master/src/libarena/lib.rs
+
 
 */
 
@@ -48,44 +51,36 @@ Documentation used :
 use alloc::raw_vec::RawVec;
 use alloc::allocator::Layout;
 use core;
+use std::cell::Cell;
 
 //TODO: make a custom error type ?
-//TODO: I just don't understand how to use a box with a custom allocator, and implementing a custom box (and Rc and stuff) sounds like a bad idea.
-//TODO: just leave it for now, it's not that useful anyway (one-frame / two-frame allocator, in a game loop).
-
-
-pub struct StackAllocHandle<T: ?Sized> {
-    pub handle: core::ptr::Unique<T>,
-}
-
 
 pub struct StackAlloc {
     stack: RawVec<u8>,
-    //I just want a pointer to a location of our memory, i don't want to 'own' it, no indication of unique or shared ownership.
-    //I just want to know from where i should allocate/deallocate the memory.
-    //Still not sure, need to think about that and dig the docs.
-    current_offset: *mut u8, //*const *mut u8, or *mut u8 ?
+    //ptr to the stack's "top". Cell gives use interior mutability
+    //(With Reset(&mut self) and alloc(&mut self), we could only allocate 1 time. After that...
+    // error[E0499]: cannot borrow `alloc` as mutable more than once at a time
+    // error[E0502]: cannot borrow `alloc` as immutable because it is also borrowed as mutable
+    current_offset: Cell<*mut u8>,
 }
 
 
 impl StackAlloc {
-    //RawVec::with_capacity() call the Heap allocator to allocate memory.
-    //The heap takes care of the alignment, and Rawvec takes care of various corner cases.
     fn with_capacity(capacity: usize) -> Self {
         let stack = RawVec::with_capacity(capacity);
-        let current_offset = stack.ptr();
+        let current_offset = Cell::new(stack.ptr() as *mut u8);
         StackAlloc {
             stack,
             current_offset,
         }
     }
 
-    fn reset(&mut self) {
-        self.current_offset = self.stack.ptr();
+    fn reset(&self) {
+        self.current_offset.set(self.stack.ptr());
     }
 
     fn current_memory_status(&self) -> (usize, usize) {
-        let cap_used = self.stack.ptr().offset_to(self.current_offset).unwrap() as usize;
+        let cap_used = self.stack.ptr().offset_to(self.current_offset.get()).unwrap() as usize;
         let cap_remaining = self.stack.cap() - cap_used;
         (cap_used, cap_remaining)
     }
@@ -94,17 +89,19 @@ impl StackAlloc {
         println!("\nCapacity: {}", self.stack.cap());
         println!("Bottom ptr: {:?}", self.stack.ptr());
         println!("Top ptr: {:?}", self.current_offset);
-        let cap_used = self.stack.ptr().offset_to(self.current_offset).unwrap() as usize; //We don't allocate zero typed objects
+        let cap_used = self.stack.ptr().offset_to(self.current_offset.get()).unwrap() as usize; //We don't allocate zero typed objects
         println!("Mem used: {}, mem left: {}", cap_used, self.stack.cap() - cap_used);
     }
 
     fn enough_space(&self, offset: usize) -> bool {
-        let cap_used = self.stack.ptr().offset_to(self.current_offset).unwrap() as usize; //We don't allocate zero typed objects
+        let cap_used = self.stack.ptr().offset_to(self.current_offset.get()).unwrap() as usize; //We don't allocate zero typed objects
         cap_used + offset < self.stack.cap()
     }
 
-    //Allocate a new block of memory of the given size, FROM STACK TOP.
-    fn alloc<T>(&mut self, value: T) -> StackAllocHandle<T> {
+    //We use arith_offset and not offset to move our current_offset, since we are not always in bounds
+    //or 1 byte past the end of the allocated object (i'm not sure about that actually, but it looks safer).
+    //Allocate a new block of memory of the given size, from stack top.
+    fn alloc<T>(&self, value: T) -> &mut T {
         let layout = Layout::new::<T>();
         let offset = layout.align() + layout.size();
         assert!(self.enough_space(offset));
@@ -115,13 +112,13 @@ impl StackAlloc {
         assert_eq!((layout.align() & layout.align() - 1), 0); //power of 2.
 
         //Get the actual stack top. It will be the address returned.
-        let old_stack_top = self.current_offset;
+        let old_stack_top = self.current_offset.get();
         //println!("address of the current stack top : {:?}", old_stack_top);
         //Determine the total amount of memory to allocate
 
         unsafe {
             //Get the ptr to the unaligned location
-            let unaligned_ptr = old_stack_top.offset(offset as isize) as usize;
+            let unaligned_ptr = old_stack_top.wrapping_offset(offset as isize) as usize;
             //println!("unaligned location: {:?}", unaligned_ptr as *mut u8);
 
             //Now calculate the adjustment by masking off the lower bits of the address, to determine
@@ -139,17 +136,15 @@ impl StackAlloc {
             //println!("aligned ptr (unaligned ptr addr + adjustment): {:?}", aligned_ptr);
 
             //Now update the current_offset
-            self.current_offset = aligned_ptr;
+            self.current_offset.set(aligned_ptr);
 
             //println!("Real amount of memory allocated: {}", offset + adjustment);
 
             //write the value in the memory location the old_stack_top is pointing.
             core::ptr::write::<T>(old_stack_top as *mut T, value);
 
-            //Return the Unique ptr, pointing to the old stack top, where the value has been written.
-            StackAllocHandle {
-                handle: core::ptr::Unique::new_unchecked(old_stack_top as *mut T),
-            }
+
+            &mut *(old_stack_top as *mut T)
         }
     }
 }
@@ -158,6 +153,10 @@ impl StackAlloc {
 #[cfg(test)]
 mod stack_allocator_test {
     use super::*;
+
+    struct TestStruct {
+        my_u8: u8
+    }
 
     #[test]
     fn test_enough_space() {
@@ -199,7 +198,7 @@ mod stack_allocator_test {
 
             we calculate the adjustment like this : alignment - misalignment.
             here, alignment - misalignment = 1.
-            our 1 byte aligned data keeps the 1 byte alignment since it's not misaligned.
+            our 1 byte aligned data keeps the 1 byte alignment since it's not misaligned. (and it's never misaligned)
 
             total amount of memory used: (alignment + size) + adjustment = 3.
         */
@@ -266,11 +265,37 @@ mod stack_allocator_test {
         alloc.print_current_memory_status();
         let test_1_byte = alloc.alloc::<u8>(2);
         alloc.print_current_memory_status();
-        assert_eq!(unsafe {test_1_byte.handle.as_ref()}, &2);
+        assert_eq!(test_1_byte, &mut 2);
         alloc.reset();
         alloc.print_current_memory_status();
         let test_1_byte = alloc.alloc::<u8>(5);
         alloc.print_current_memory_status();
-        assert_eq!(unsafe {test_1_byte.handle.as_ref()}, &5);
+        assert_eq!(test_1_byte, &mut 5);
+    }
+
+    #[test]
+    fn test_non_copyable_objects() {
+        let alloc = StackAlloc::with_capacity(200);
+        let (used, remaining) = alloc.current_memory_status();
+        assert_eq!(used, 0);
+        assert_eq!(remaining, 200);
+        alloc.print_current_memory_status();
+        let non_copy_obj = alloc.alloc::<String>(String::from("Test"));
+        let (used, remaining) = alloc.current_memory_status();
+        assert_eq!(used, 40);
+        assert_eq!(remaining, 160);
+        alloc.print_current_memory_status();
+        {
+            let non_copy_obj_2 = alloc.alloc::<String>(String::from("test 2"));
+            let (used, remaining) = alloc.current_memory_status();
+            assert_eq!(used, 80);
+            assert_eq!(remaining, 120);
+            alloc.print_current_memory_status();
+        }
+        //Here, we lost the handle to the non_copy_obj_2, and the memory has not been dropped.
+        let (used, remaining) = alloc.current_memory_status();
+        assert_eq!(used, 80);
+        assert_eq!(remaining, 120);
+        alloc.print_current_memory_status();
     }
 }
