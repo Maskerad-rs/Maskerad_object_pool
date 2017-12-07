@@ -72,3 +72,4 @@
 extern crate alloc;
 extern crate core;
 pub mod stack_allocator;
+pub mod pool_allocator;
