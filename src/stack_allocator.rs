@@ -160,7 +160,7 @@ mod stack_allocator_test {
 
     #[test]
     fn test_enough_space() {
-        let mut alloc = StackAlloc::with_capacity(200);
+        let alloc = StackAlloc::with_capacity(200);
         assert!(alloc.enough_space(13));
         assert!(!alloc.enough_space(201));
     }
@@ -168,7 +168,7 @@ mod stack_allocator_test {
     #[test]
     fn creation_with_right_capacity() {
         //create a StackAllocator with the specified size.
-        let mut alloc = StackAlloc::with_capacity(200);
+        let alloc = StackAlloc::with_capacity(200);
         let (used, remaining) = alloc.current_memory_status();
         assert_eq!(used, 0);
         assert_eq!(remaining, 200);
@@ -179,7 +179,7 @@ mod stack_allocator_test {
         //Check the allocation with u8, u32 an u64, to verify the alignment behavior.
 
         //We allocate 200 bytes of memory.
-        let mut alloc = StackAlloc::with_capacity(200);
+        let alloc = StackAlloc::with_capacity(200);
 
         /*
             U8 :
@@ -261,7 +261,7 @@ mod stack_allocator_test {
     #[test]
     fn test_reset() {
         //Test if there's any problem with memory overwriting.
-        let mut alloc = StackAlloc::with_capacity(200);
+        let alloc = StackAlloc::with_capacity(200);
         alloc.print_current_memory_status();
         let test_1_byte = alloc.alloc::<u8>(2);
         alloc.print_current_memory_status();
@@ -271,31 +271,5 @@ mod stack_allocator_test {
         let test_1_byte = alloc.alloc::<u8>(5);
         alloc.print_current_memory_status();
         assert_eq!(test_1_byte, &mut 5);
-    }
-
-    #[test]
-    fn test_non_copyable_objects() {
-        let alloc = StackAlloc::with_capacity(200);
-        let (used, remaining) = alloc.current_memory_status();
-        assert_eq!(used, 0);
-        assert_eq!(remaining, 200);
-        alloc.print_current_memory_status();
-        let non_copy_obj = alloc.alloc::<String>(String::from("Test"));
-        let (used, remaining) = alloc.current_memory_status();
-        assert_eq!(used, 40);
-        assert_eq!(remaining, 160);
-        alloc.print_current_memory_status();
-        {
-            let non_copy_obj_2 = alloc.alloc::<String>(String::from("test 2"));
-            let (used, remaining) = alloc.current_memory_status();
-            assert_eq!(used, 80);
-            assert_eq!(remaining, 120);
-            alloc.print_current_memory_status();
-        }
-        //Here, we lost the handle to the non_copy_obj_2, and the memory has not been dropped.
-        let (used, remaining) = alloc.current_memory_status();
-        assert_eq!(used, 80);
-        assert_eq!(remaining, 120);
-        alloc.print_current_memory_status();
     }
 }
