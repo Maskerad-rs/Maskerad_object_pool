@@ -23,7 +23,7 @@
     let my_object = Box::new(Monster::default()) -> allocation on the heap
 
     let monsterPool: ObjectPool<Monster> = ObjectPool::with_capacity(20); // 20 monsters pre-allocated
-    let my_object = monsterPool.new(); //return a &mut Monster or RefCell<Monster>, and no allocation occurred.
+    let my_object = monsterPool.new(); //return a &mut Monster, RefCell<Monster> or something like that, and no allocation occurred.
 
     We can maybe create a wrapper around a RefCell<my_type> and impl Drop -> set the in_use property automatically when the RefCell goes out of scope.
 */
@@ -75,40 +75,94 @@ See that :
 https://en.wikipedia.org/wiki/Free_list
 https://en.wikipedia.org/wiki/Object_pool_pattern
 see the free list solution.
+
+a Poolable trait ?
+
 */
 use std::sync::Arc;
 use std::sync::Mutex;
 
-pub struct ConcurrentObject<T> {
+use std::rc::Rc;
+use std::cell::RefCell;
+
+use std::fmt;
+use std::ops::Deref;
+
+/*
+2 traits : Poolable, ConcurrentPoolable
+*/
+
+//TODO: T : Send + Sync ? We should not manually implement them.
+//Debug is self-explanatory.
+//Default, to be able to create our objects with a default configuration in the constructor of the ObjectPool
+//Clone, to mimic the Ref counted pointer inside our types.
+//Drop, to reinitialize our object to a default configuration and set in_use to false when our object is dropped.
+//Deref, convenient for smart pointers to access inner pointers (our types are simple wrappers around smart pointers).
+pub trait Poolable : fmt::Debug + Default + Clone + Drop + Deref {
+    fn reinitialize(&mut self);
+}
+
+pub trait ConcurrentPoolable: Poolable {}
+
+
+
+
+
+pub struct ConcurrentObjectHandle<T> {
     object: Arc<Mutex<T>>,
-
+    in_use: bool,
 }
 
-pub struct ConcurrentObjectPool<T> {
-    objects: Vec<Arc<Mutex<T>>>,
+pub struct ObjectHandle<T> {
+    object: Rc<RefCell<T>>,
+    in_use: bool,
 }
 
-impl<T, N: Integer> ObjectPool<T> {
-    fn with_capacity(size: usize) -> Self {
-        let vec = Vec::with_capacity(size);
-        for _ in 0..size {
-            vec.push()
+
+
+
+
+
+pub struct ObjectPool<T: Poolable> {
+    objects: Vec<T>,
+}
+
+impl<T: Poolable> ObjectPool<T> {
+    pub fn with_capacity(size: usize) -> Self {
+        let mut objects = Vec::with_capacity(size);
+
+        for i in 0..size - 1 {
+            objects[i] = T::default();
         }
+
         ObjectPool {
-            objects: ,
+            objects,
         }
+
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #[cfg(test)]
 mod objectpool_tests {
     use super::*;
 
     #[test]
-    fn test_tatatata() {
+    fn test() {
 
-        let test = ObjectPool::new();
-        println!("{:?}", test.objects);
-        panic!()
     }
 }
