@@ -86,53 +86,106 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 use std::fmt;
-use std::ops::Deref;
-
+use std::cmp;
+use std::slice::Iter;
 /*
 2 traits : Poolable, ConcurrentPoolable
 */
 
 //TODO: T : Send + Sync ? We should not manually implement them.
-//Debug is self-explanatory.
-//Default, to be able to create our objects with a default configuration in the constructor of the ObjectPool
-//Clone, to mimic the Ref counted pointer inside our types.
-//Drop, to reinitialize our object to a default configuration and set in_use to false when our object is dropped.
-//Deref, convenient for smart pointers to access inner pointers (our types are simple wrappers around smart pointers).
-pub trait Poolable : fmt::Debug + Default + Clone + Drop + Deref {
-    fn reinitialize(&mut self);
+//TODO: impl Sized ?
+//Debug : Display some infos about the structure.
+//Default: Create our objects with a default configuration in the constructor of the ObjectPool
+//Ord : if the programmer asks for an object, but all objects are used, we may need to "kill" an object. We use the Ord trait to find the object to kill.
+
+//We use objects handlers to use a custom drop implementation.
+//TODO: test the strong count ! Apparently, calling std::mem::drop doesn't release borrows.
+//TODO: impl deref to obtain directly the Rc, which impl deref to obtain the T in Rc<T> ?
+
+#[derive(Default, Debug, Ord, PartialOrd, Eq, PartialEq)]
+pub struct PoolObjectHandler<T: Poolable>(Rc<RefCell<PoolObject<T>>>);
+
+impl<T: Poolable> Drop for PoolObjectHandler<T> {
+    fn drop(&mut self) {
+        self.0.borrow_mut().reinitialize();
+    }
 }
 
-pub trait ConcurrentPoolable: Poolable {}
+impl<T: Poolable> Clone for PoolObjectHandler<T> {
+    fn clone(&self) -> PoolObjectHandler<T> {
+        PoolObjectHandler(self.0.clone())
+    }
+}
 
 
+//TODO: for PoolObject and ConcurrentPoolObject
+pub trait Poolable : fmt::Debug + Default + Ord + Eq + PartialOrd + PartialEq {}
 
 
-
-pub struct ConcurrentObjectHandle<T> {
-    object: Arc<Mutex<T>>,
+//TODO: impl Debug, Default, Ord, PartialOrd, Eq, PartialEq
+#[derive(Debug)]
+pub struct PoolObject<T: Poolable> {
+    object: T,
     in_use: bool,
 }
 
-pub struct ObjectHandle<T> {
-    object: Rc<RefCell<T>>,
-    in_use: bool,
+impl<T: Poolable> PoolObject<T> {
+    fn reinitialize(&mut self) {
+        self.object = T::default();
+        self.in_use = false;
+    }
+
+    fn is_used(&self) -> bool {
+        self.in_use
+    }
+
+    fn set_used(&mut self, used: bool) {
+        self.in_use = used;
+    }
 }
 
+impl<T: Poolable> Default for PoolObject<T> {
+    fn default() -> Self {
+        PoolObject {
+            object: T::default(),
+            in_use: false,
+        }
+    }
+}
 
+impl<T: Poolable> Ord for PoolObject<T> {
+    fn cmp(&self, other: &PoolObject<T>) -> cmp::Ordering {
+        self.object.cmp(&other.object)
+    }
+}
+
+impl<T: Poolable> PartialOrd for PoolObject<T> {
+    fn partial_cmp(&self, other: &PoolObject<T>) -> Option<cmp::Ordering> {
+        self.object.partial_cmp(&other.object)
+    }
+}
+
+impl<T: Poolable> PartialEq for PoolObject<T> {
+    fn eq(&self, other: &PoolObject<T>) -> bool {
+        self.object.eq(&other.object)
+    }
+}
+
+impl<T: Poolable> Eq for PoolObject<T> {}
 
 
 
 
 pub struct ObjectPool<T: Poolable> {
-    objects: Vec<T>,
+    objects: Vec<PoolObjectHandler<T>>,
 }
 
 impl<T: Poolable> ObjectPool<T> {
     pub fn with_capacity(size: usize) -> Self {
         let mut objects = Vec::with_capacity(size);
 
-        for i in 0..size - 1 {
-            objects[i] = T::default();
+        for _ in 0..size {
+            objects.push(PoolObjectHandler::default());
         }
 
         ObjectPool {
@@ -140,29 +193,42 @@ impl<T: Poolable> ObjectPool<T> {
         }
 
     }
+
+    pub fn create(&self) -> Option<PoolObjectHandler<T>> {
+         match self.objects.iter().find(|obj| {!obj.0.borrow_mut().is_used()}) {
+             Some(obj_ref) => {
+                 obj_ref.0.borrow_mut().set_used(true);
+                 Some(obj_ref.clone())
+             },
+             None => None,
+         }
+    }
+
+    pub fn force_create(&mut self) -> Option<PoolObjectHandler<T>> {
+        match self.objects.iter().min() {
+            Some(obj_ref) => {
+                obj_ref.0.borrow_mut().reinitialize();
+                obj_ref.0.borrow_mut().set_used(true);
+                Some(obj_ref.clone())
+            },
+            None => None,
+        }
+    }
+
+    pub fn iter(&self) -> Iter<PoolObjectHandler<T>> {
+        self.objects.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.objects.len()
+    }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 #[cfg(test)]
 mod objectpool_tests {
     use super::*;
 
-    #[test]
-    fn test() {
 
-    }
+
 }
