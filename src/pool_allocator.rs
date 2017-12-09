@@ -320,11 +320,11 @@ mod objectpool_tests {
 
     #[test]
     fn test_create_no_more_objects() {
-        unimplemented!()
+       //TODO: finish.
     }
 
     #[test]
     fn test_force_create() {
-        unimplemented!()
+        //TODO: finish.
     }
 }
