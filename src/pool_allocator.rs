@@ -90,13 +90,12 @@ use std::cmp;
 use std::slice::Iter;
 use std::ops;
 
-//TODO: l 138 : We should give an access to the inner object.
-//TODO: Finish the force_create with closure
-//TODO: finish the tests
-//TODO: Same but with Arc<Mutex<T>>
+
+//TODO: Same but with Arc<Mutex<T>> -> ConcurrentObjectPool
+//TODO: Same without pointers -> a owning object pool which implement a function (something like update() to operate on its objects)
 
 //TODO: T : Send + Sync ? We should not manually implement them.
-//TODO: impl Sized ? ?Sized ?
+//TODO: impl ?Sized  for RefCountedObjectPool and ConcurrentObjectPool?
 
 //TODO: We can add the free list logic, just create a trait allowing the free list logic
 // and add the logic like this : impl<T: Default + FreeListCompatible> ObjectPool<T> {}
