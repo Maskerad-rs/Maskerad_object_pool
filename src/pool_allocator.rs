@@ -94,9 +94,13 @@ use std::ops;
 //TODO: Finish the force_create with closure
 //TODO: finish the tests
 //TODO: Same but with Arc<Mutex<T>>
-//TODO: See if we can use the "free list" trick.
+
 //TODO: T : Send + Sync ? We should not manually implement them.
 //TODO: impl Sized ? ?Sized ?
+
+//TODO: We can add the free list logic, just create a trait allowing the free list logic
+// and add the logic like this : impl<T: Default + FreeListCompatible> ObjectPool<T> {}
+
 //Debug : Display some infos about the structure.
 //Default: Create our objects with a default configuration in the constructor of the ObjectPool
 //Ord : if the programmer asks for an object, but all objects are used, we may need to "kill" an object. We use the Ord trait to find the object to kill.
@@ -130,6 +134,19 @@ impl<T: Default> Clone for PoolObjectHandler<T> {
 pub struct PoolObject<T: Default> {
     object: T,
     in_use: bool,
+}
+
+impl<T: Default> ops::Deref for PoolObject<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.object
+    }
+}
+
+impl<T: Default> ops::DerefMut for PoolObject<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.object
+    }
 }
 
 impl<T: Default + fmt::Debug> fmt::Debug for PoolObject<T> {
@@ -220,11 +237,18 @@ impl<T: Default> ObjectPool<T> {
     }
 
     //TODO: we need a closure as arg.
-    pub fn force_create_with_filter(&mut self) -> Option<PoolObjectHandler<T>> {
-unimplemented!()
+    pub fn force_create_with_filter<P>(&self, predicate: P) -> Option<PoolObjectHandler<T>> where
+    for<'r> P: FnMut(&'r &PoolObjectHandler<T>) -> bool
+    {
+        match self.iter().find(predicate) {
+            Some(obj_ref) => {
+                obj_ref.borrow_mut().reinitialize();
+                obj_ref.borrow_mut().set_used(true);
+                Some(obj_ref.clone())
+            },
+            None => None,
+        }
     }
-
-
 
     pub fn nb_unused(&self) -> usize {
         self.iter().filter(|obj| !obj.0.borrow_mut().is_used()).count()
@@ -232,7 +256,7 @@ unimplemented!()
 }
 
 impl<T: Default + Ord> ObjectPool<T> {
-    pub fn force_create(&mut self) -> Option<PoolObjectHandler<T>> {
+    pub fn force_create(&self) -> Option<PoolObjectHandler<T>> {
         match self.iter().min() {
             Some(obj_ref) => {
                 obj_ref.borrow_mut().reinitialize();
@@ -250,7 +274,7 @@ mod objectpool_tests {
 
 
     #[derive(Ord, PartialOrd, Eq, PartialEq, Debug)]
-    struct Monster {
+    pub struct Monster {
         name: String,
         level: u8,
         hp: u32,
@@ -263,6 +287,12 @@ mod objectpool_tests {
                 level: 1,
                 hp: 10,
             }
+        }
+    }
+
+    impl Monster {
+        pub fn level_up(&mut self) {
+            self.level += 1;
         }
     }
 
@@ -320,11 +350,63 @@ mod objectpool_tests {
 
     #[test]
     fn test_create_no_more_objects() {
-       //TODO: finish.
+        let monster_pool: ObjectPool<Monster> = ObjectPool::with_capacity(3);
+        let monster = monster_pool.create().unwrap();
+        let monster2 = monster_pool.create().unwrap();
+        let monster3 = monster_pool.create().unwrap();
+
+        assert_eq!(monster_pool.create(), None);
+    }
+
+    #[test]
+    fn test_modify_inner_value() {
+        let monster_pool: ObjectPool<Monster> = ObjectPool::with_capacity(3);
+        let monster = monster_pool.create().unwrap();
+        monster.borrow_mut().level_up();
+        assert_eq!(monster.borrow_mut().level, 2);
+        let nb_monster_lvl_2 = monster_pool
+            .iter()
+            .filter(|obj| {
+                obj.borrow_mut().level > 1
+            }).count();
+
+        assert_eq!(nb_monster_lvl_2, 1);
     }
 
     #[test]
     fn test_force_create() {
-        //TODO: finish.
+        let monster_pool: ObjectPool<Monster> = ObjectPool::with_capacity(3);
+        let monster = monster_pool.create().unwrap();
+        let monster2 = monster_pool.create().unwrap();
+        let monster3 = monster_pool.create().unwrap();
+        for monster in monster_pool.iter() {
+            assert_eq!(Rc::strong_count(&monster), 2);
+            assert!(monster.borrow_mut().is_used());
+        }
+        monster3.borrow_mut().level_up();
+        assert_eq!(monster3.borrow_mut().level, 2);
+
+        let new_monster3 = monster_pool.force_create_with_filter(|obj| {
+            obj.borrow_mut().level == 2
+        }).unwrap();
+
+        assert_eq!(Rc::strong_count(&new_monster3), 3);
+        assert_eq!(new_monster3.borrow_mut().level, 1);
+        //Monster is Ord, we can try force_kill.
+        //monster_pool.force_create_with_filter(|obj|)
+
+        monster2.borrow_mut().level_up();
+        let new_monster1 = monster_pool.force_create().unwrap();
+        assert_eq!(Rc::strong_count(&monster), 3);
+        assert_eq!(Rc::strong_count(&new_monster1), 3);
+        assert_eq!(new_monster1.borrow_mut().level, 1);
+
+        assert_eq!(Rc::strong_count(&monster2), 2);
+        assert_eq!(monster2.borrow_mut().level, 2);
+
+        new_monster3.borrow_mut().level_up();
+        assert_eq!(new_monster3.borrow_mut().level, 2);
+        assert_eq!(monster3.borrow_mut().level, 2);
+
     }
 }
