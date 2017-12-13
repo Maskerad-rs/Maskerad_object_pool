@@ -124,7 +124,7 @@ impl<T: Default> Clone for PoolObjectHandler<T> {
 
 
 
-impl<T: Default> ops::Deref for ObjectPool<T> {
+impl<T: Default> ops::Deref for RefCountedObjectPool<T> {
     type Target = Vec<PoolObjectHandler<T>>;
 
     fn deref(&self) -> &Vec<PoolObjectHandler<T>> {
@@ -132,10 +132,10 @@ impl<T: Default> ops::Deref for ObjectPool<T> {
     }
 }
 
-pub struct ObjectPool<T: Default>(Vec<PoolObjectHandler<T>>);
+pub struct RefCountedObjectPool<T: Default>(Vec<PoolObjectHandler<T>>);
 
 
-impl<T: Default> ObjectPool<T> {
+impl<T: Default> RefCountedObjectPool<T> {
     pub fn with_capacity(size: usize) -> Self {
         let mut objects = Vec::with_capacity(size);
 
@@ -143,8 +143,18 @@ impl<T: Default> ObjectPool<T> {
             objects.push(PoolObjectHandler::default());
         }
 
-        ObjectPool(objects)
+        RefCountedObjectPool(objects)
 
+    }
+
+    pub fn create_strict(&self) -> AllocResult<PoolObjectHandler<T>> {
+        match self.iter().find(|obj| {!obj.borrow_mut().is_used()}) {
+            Some(obj_ref) => {
+                obj_ref.borrow_mut().set_used(true);
+                Ok(obj_ref.clone())
+            },
+            None => Err(AllocError::PoolError(String::from("The reference counted object pool is out of objects !"))),
+        }
     }
 
     pub fn create(&self) -> Option<PoolObjectHandler<T>> {
@@ -205,14 +215,14 @@ mod refcounted_objectpool_tests {
 
     #[test]
     fn test_len() {
-        let simple_pool: ObjectPool<u8> = ObjectPool::with_capacity(26);
+        let simple_pool: RefCountedObjectPool<u8> = RefCountedObjectPool::with_capacity(26);
         assert_eq!(simple_pool.len(), 26);
         assert_eq!(simple_pool.len(), simple_pool.capacity())
     }
 
     #[test]
     fn test_is_used_at_initialization() {
-        let monster_pool: ObjectPool<Monster> = ObjectPool::with_capacity(14);
+        let monster_pool: RefCountedObjectPool<Monster> = RefCountedObjectPool::with_capacity(14);
         for monster in monster_pool.iter() {
             assert!(!monster.borrow_mut().is_used())
         }
@@ -220,7 +230,7 @@ mod refcounted_objectpool_tests {
 
     #[test]
     fn test_drop_wrapper_around_smart_pointer() {
-        let monster_pool: ObjectPool<Monster> = ObjectPool::with_capacity(10);
+        let monster_pool: RefCountedObjectPool<Monster> = RefCountedObjectPool::with_capacity(10);
         let monster = monster_pool.create().unwrap();
         assert_eq!(Rc::strong_count(&monster), 2);
         assert!(monster.borrow_mut().is_used());
@@ -258,7 +268,7 @@ mod refcounted_objectpool_tests {
 
     #[test]
     fn test_create_no_more_objects() {
-        let monster_pool: ObjectPool<Monster> = ObjectPool::with_capacity(3);
+        let monster_pool: RefCountedObjectPool<Monster> = RefCountedObjectPool::with_capacity(3);
         let _monster = monster_pool.create().unwrap();
         let _monster2 = monster_pool.create().unwrap();
         let _monster3 = monster_pool.create().unwrap();
@@ -268,7 +278,7 @@ mod refcounted_objectpool_tests {
 
     #[test]
     fn test_modify_inner_value() {
-        let monster_pool: ObjectPool<Monster> = ObjectPool::with_capacity(3);
+        let monster_pool: RefCountedObjectPool<Monster> = RefCountedObjectPool::with_capacity(3);
         let monster = monster_pool.create().unwrap();
         monster.borrow_mut().level_up();
         assert_eq!(monster.borrow_mut().level, 2);
@@ -283,7 +293,7 @@ mod refcounted_objectpool_tests {
 
     #[test]
     fn test_force_create() {
-        let monster_pool: ObjectPool<Monster> = ObjectPool::with_capacity(3);
+        let monster_pool: RefCountedObjectPool<Monster> = RefCountedObjectPool::with_capacity(3);
         let monster = monster_pool.create().unwrap();
         let monster2 = monster_pool.create().unwrap();
         let monster3 = monster_pool.create().unwrap();
@@ -318,5 +328,12 @@ mod refcounted_objectpool_tests {
         assert_eq!(new_monster3.borrow_mut().level, 2);
         assert_eq!(monster3.borrow_mut().level, 2);
 
+    }
+
+    #[test]
+    fn test_create_strict() {
+        let monster_pool: RefCountedObjectPool<Monster> = RefCountedObjectPool::with_capacity(1);
+        let _monster = monster_pool.create_strict().unwrap();
+        assert!(monster_pool.create_strict().is_err());
     }
 }
