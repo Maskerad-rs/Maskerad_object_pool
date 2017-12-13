@@ -85,24 +85,15 @@ use pool_object::PoolObject;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use std::fmt;
-use std::cmp;
-use std::slice::Iter;
 use std::ops;
 
-//TODO: Should pools impl a function like update() to update all its elements ?
-//TODO: Same without pointers -> a owning object pool returning &mut T ?
-
-//TODO: T : Send + Sync ? We should not manually implement them.
-
-//TODO: impl ?Sized  for RefCountedObjectPool and ConcurrentObjectPool? A trait can't impl Default though.
-
-//TODO: We can add the free list logic, just create a trait allowing the free list logic
-// and add the logic like this : impl<T: Default + FreeListCompatible> ObjectPool<T> {}
+//TODO: Should pools impl a function like update() to update all its elements ? It should stay outside of the memory pools.
+//We can't create a pool returning &mut T -> calling pool.create(&mut self) -> &mut T 2 times would
+//trigger the error indicating "can mutably borrow only one time".
+//TODO: T : Send + Sync (rwlock), or just Send (mutex), trait bound for ConcurrentPool ?
 
 //Debug : Display some infos about the structure.
 //Default: Create our objects with a default configuration in the constructor of the ObjectPool
-//Ord : if the programmer asks for an object, but all objects are used, we may need to "kill" an object. We use the Ord trait to find the object to kill.
 
 //We use objects handlers to use a custom drop implementation.
 
@@ -218,6 +209,7 @@ mod refcounted_objectpool_tests {
         assert_eq!(simple_pool.len(), simple_pool.capacity())
     }
 
+    #[test]
     fn test_is_used_at_initialization() {
         let monster_pool: ObjectPool<Monster> = ObjectPool::with_capacity(14);
         for monster in monster_pool.iter() {
@@ -266,9 +258,9 @@ mod refcounted_objectpool_tests {
     #[test]
     fn test_create_no_more_objects() {
         let monster_pool: ObjectPool<Monster> = ObjectPool::with_capacity(3);
-        let monster = monster_pool.create().unwrap();
-        let monster2 = monster_pool.create().unwrap();
-        let monster3 = monster_pool.create().unwrap();
+        let _monster = monster_pool.create().unwrap();
+        let _monster2 = monster_pool.create().unwrap();
+        let _monster3 = monster_pool.create().unwrap();
 
         assert_eq!(monster_pool.create(), None);
     }

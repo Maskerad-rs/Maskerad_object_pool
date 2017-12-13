@@ -1,9 +1,13 @@
+// Copyright 2017 Maskerad Developers
+//
+// Licensed under the Apache License, Version 2.0, <LICENSE-APACHE or
+// http://apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or
+// http://opensource.org/licenses/MIT>, at your option. This file may not be
+// copied, modified, or distributed except according to those terms.
+
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use std::fmt;
-use std::cmp;
-use std::slice::Iter;
 use std::ops;
 
 use pool_object::PoolObject;
@@ -96,7 +100,7 @@ impl<T: Default> ConcurrentObjectPool<T> {
 
 
 #[cfg(test)]
-mod refcounted_objectpool_tests {
+mod concurrent_objectpool_tests {
     use super::*;
     use std::sync::mpsc::channel;
     use std::thread;
@@ -131,6 +135,7 @@ mod refcounted_objectpool_tests {
         assert_eq!(simple_pool.len(), simple_pool.capacity())
     }
 
+    #[test]
     fn test_is_used_at_initialization() {
         let monster_pool: ConcurrentObjectPool<Monster> = ConcurrentObjectPool::with_capacity(14);
         for monster in monster_pool.iter() {
@@ -179,9 +184,9 @@ mod refcounted_objectpool_tests {
     #[test]
     fn test_create_no_more_objects() {
         let monster_pool: ConcurrentObjectPool<Monster> = ConcurrentObjectPool::with_capacity(3);
-        let monster = monster_pool.create().unwrap();
-        let monster2 = monster_pool.create().unwrap();
-        let monster3 = monster_pool.create().unwrap();
+        let _monster = monster_pool.create().unwrap();
+        let _monster2 = monster_pool.create().unwrap();
+        let _monster3 = monster_pool.create().unwrap();
 
         assert_eq!(monster_pool.create(), None);
     }
@@ -250,7 +255,7 @@ mod refcounted_objectpool_tests {
         thread::spawn(move || {
             let mut monster_lock = monster.lock().unwrap();
             monster_lock.level_up();
-            tx.send(monster_lock.level);
+            tx.send(monster_lock.level).unwrap();
         });
 
         assert_eq!(rx.recv().unwrap(), 2);

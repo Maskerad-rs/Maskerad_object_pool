@@ -48,12 +48,12 @@ Documentation used :
 */
 
 
+use errors::{AllocError, AllocResult};
+
 use alloc::raw_vec::RawVec;
 use alloc::allocator::Layout;
 use core;
 use std::cell::Cell;
-
-//TODO: make a custom error type ?
 
 pub struct StackAlloc {
     stack: RawVec<u8>,
@@ -66,7 +66,7 @@ pub struct StackAlloc {
 
 
 impl StackAlloc {
-    fn with_capacity(capacity: usize) -> Self {
+    pub fn with_capacity(capacity: usize) -> Self {
         let stack = RawVec::with_capacity(capacity);
         let current_offset = Cell::new(stack.ptr() as *mut u8);
         StackAlloc {
@@ -75,13 +75,13 @@ impl StackAlloc {
         }
     }
 
-    fn reset(&self) {
+    pub fn reset(&self) {
         self.current_offset.set(self.stack.ptr());
     }
 
-    fn current_memory_status(&self) -> (usize, usize) {
+    fn current_memory_status(&self) -> (usize, isize) {
         let cap_used = self.stack.ptr().offset_to(self.current_offset.get()).unwrap() as usize;
-        let cap_remaining = self.stack.cap() - cap_used;
+        let cap_remaining = (self.stack.cap() - cap_used) as isize;
         (cap_used, cap_remaining)
     }
 
@@ -93,29 +93,39 @@ impl StackAlloc {
         println!("Mem used: {}, mem left: {}", cap_used, self.stack.cap() - cap_used);
     }
 
-    fn enough_space(&self, offset: usize) -> bool {
-        let cap_used = self.stack.ptr().offset_to(self.current_offset.get()).unwrap() as usize; //We don't allocate zero typed objects
-        cap_used + offset < self.stack.cap()
+    fn enough_space_aligned(&self, offset_ptr: *mut u8) -> bool {
+        let future_cap = self.stack.ptr().offset_to(offset_ptr).unwrap() as usize; //We don't allocate zero typed objects
+        future_cap < self.stack.cap()
+    }
+
+    fn enough_space_unaligned(&self, offset: usize) -> bool {
+        let current_cap = self.stack.ptr().offset_to(self.current_offset.get()).unwrap() as usize;
+        current_cap + offset < self.stack.cap()
     }
 
     //We use arith_offset and not offset to move our current_offset, since we are not always in bounds
     //or 1 byte past the end of the allocated object (i'm not sure about that actually, but it looks safer).
     //Allocate a new block of memory of the given size, from stack top.
-    fn alloc<T>(&self, value: T) -> &mut T {
-        let layout = Layout::new::<T>();
+    pub fn alloc<T>(&self, value: T) -> AllocResult<&mut T> {
+        let layout = Layout::new::<T>(); //is always a power of two.
         let offset = layout.align() + layout.size();
-        assert!(self.enough_space(offset));
+
         //println!("\nalignment: {}-byte alignment", layout.align());
         //println!("size: {}", layout.size());
         //println!("Total amount of memory to allocate: {} bytes", offset);
 
-        assert_eq!((layout.align() & layout.align() - 1), 0); //power of 2.
+        if !self.enough_space_unaligned(offset) {
+            let future_cap = self.stack.ptr().offset_to(self.current_offset.get()).unwrap() as usize + offset;
+            let remaining_cap = self.stack.cap() - future_cap;
+
+            return Err(AllocError::StackAllocError(format!("The stack allocator is out of memory (unaligned) ! bytes used: {}, overflow by {} bytes.", future_cap, remaining_cap)));
+        }
 
         //Get the actual stack top. It will be the address returned.
         let old_stack_top = self.current_offset.get();
         //println!("address of the current stack top : {:?}", old_stack_top);
-        //Determine the total amount of memory to allocate
 
+        //Determine the total amount of memory to allocate
         unsafe {
             //Get the ptr to the unaligned location
             let unaligned_ptr = old_stack_top.wrapping_offset(offset as isize) as usize;
@@ -130,10 +140,14 @@ impl StackAlloc {
             let adjustment = layout.align() - misalignment;
             //println!("adjustment (current alignment - misalignment): {:#X}", adjustment);
 
-            //Get the adjusted address
-            assert!(adjustment < 256);
             let aligned_ptr = (unaligned_ptr + adjustment) as *mut u8;
             //println!("aligned ptr (unaligned ptr addr + adjustment): {:?}", aligned_ptr);
+
+            if !self.enough_space_aligned(aligned_ptr) {
+                let future_cap = self.stack.ptr().offset_to(aligned_ptr).unwrap() as usize;
+                let remaining_cap = self.stack.cap() - future_cap;
+                return Err(AllocError::StackAllocError(format!("The stack allocator is out of memory (aligned) ! bytes used: {}, overflow by {} bytes.", future_cap, remaining_cap)));
+            }
 
             //Now update the current_offset
             self.current_offset.set(aligned_ptr);
@@ -144,7 +158,7 @@ impl StackAlloc {
             core::ptr::write::<T>(old_stack_top as *mut T, value);
 
 
-            &mut *(old_stack_top as *mut T)
+            Ok(&mut *(old_stack_top as *mut T))
         }
     }
 }
@@ -154,15 +168,11 @@ impl StackAlloc {
 mod stack_allocator_test {
     use super::*;
 
-    struct TestStruct {
-        my_u8: u8
-    }
-
     #[test]
     fn test_enough_space() {
         let alloc = StackAlloc::with_capacity(200);
-        assert!(alloc.enough_space(13));
-        assert!(!alloc.enough_space(201));
+        assert!(alloc.enough_space_unaligned(13));
+        assert!(!alloc.enough_space_unaligned(201));
     }
 
     #[test]
@@ -202,8 +212,8 @@ mod stack_allocator_test {
 
             total amount of memory used: (alignment + size) + adjustment = 3.
         */
-        alloc.print_current_memory_status();
-        let test_1_byte = alloc.alloc::<u8>(2);
+        //alloc.print_current_memory_status();
+        let _test_1_byte = alloc.alloc::<u8>(2).unwrap();
         let (used, remaining) = alloc.current_memory_status();
         assert_eq!(used, 3); //3
         assert_eq!(remaining, 197); //200 - 3
@@ -228,7 +238,7 @@ mod stack_allocator_test {
 
             total amount of memory used: (alignment + size) + adjustment = 9.
         */
-        let test_4_bytes = alloc.alloc::<u32>(60000);
+        let _test_4_bytes = alloc.alloc::<u32>(60000).unwrap();
         let (used, remaining) = alloc.current_memory_status();
         assert_eq!(used, 12); //3 + 9
         assert_eq!(remaining, 188); //200 - 3 - 9
@@ -252,7 +262,7 @@ mod stack_allocator_test {
 
             total amount of memory used: (alignment + size) + adjustment = 20.
         */
-        let test_8_bytes = alloc.alloc::<u64>(100000);
+        let _test_8_bytes = alloc.alloc::<u64>(100000).unwrap();
         let (used, remaining) = alloc.current_memory_status();
         assert_eq!(used, 32); // 3 + 9 + 20
         assert_eq!(remaining, 168); //200 - 3 - 9 - 20
@@ -262,14 +272,14 @@ mod stack_allocator_test {
     fn test_reset() {
         //Test if there's any problem with memory overwriting.
         let alloc = StackAlloc::with_capacity(200);
-        alloc.print_current_memory_status();
-        let test_1_byte = alloc.alloc::<u8>(2);
-        alloc.print_current_memory_status();
+        //alloc.print_current_memory_status();
+        let test_1_byte = alloc.alloc::<u8>(2).unwrap();
+        //alloc.print_current_memory_status();
         assert_eq!(test_1_byte, &mut 2);
         alloc.reset();
-        alloc.print_current_memory_status();
-        let test_1_byte = alloc.alloc::<u8>(5);
-        alloc.print_current_memory_status();
+        //alloc.print_current_memory_status();
+        let test_1_byte = alloc.alloc::<u8>(5).unwrap();
+        //alloc.print_current_memory_status();
         assert_eq!(test_1_byte, &mut 5);
     }
 }

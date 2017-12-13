@@ -11,14 +11,6 @@
 #![feature(pointer_methods)]
 #![feature(offset_to)]
 
-//TODO: create a custom allocator ? it looks like we don't need that.
-//TODO: maybe use an array, instead of a RawVec ? An array is on the stack, and a RawVec on the heap tho.
-//TODO: See vec.rs (push) and raw_vec.rs to get an idea of the implementation.
-//TODO: Our lib is nightly only right now. See if we can't bring it to stable and beta.
-
-//TODO: See how efficient the Heap structure is. Since it's general pupose, it may be a bit "slow".
-//TODO: We want to implement a custom allocator if it's the case
-
 //Two reasons why a Heap allocator can be slow :
 //  -   general purpose (can alloc 1 byte, or 1 gigabyte)
 //  -   context-switch from user-mode to kernel-mode
@@ -71,7 +63,9 @@
 
 extern crate alloc;
 extern crate core;
+
 pub mod stack_allocator;
 pub mod refcounted_pool_allocator;
 pub mod concurrent_pool_allocator;
 pub mod pool_object;
+pub mod errors;
