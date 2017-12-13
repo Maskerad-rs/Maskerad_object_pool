@@ -79,20 +79,6 @@ impl StackAlloc {
         self.current_offset.set(self.stack.ptr());
     }
 
-    fn current_memory_status(&self) -> (usize, isize) {
-        let cap_used = self.stack.ptr().offset_to(self.current_offset.get()).unwrap() as usize;
-        let cap_remaining = (self.stack.cap() - cap_used) as isize;
-        (cap_used, cap_remaining)
-    }
-
-    fn print_current_memory_status(&self) {
-        println!("\nCapacity: {}", self.stack.cap());
-        println!("Bottom ptr: {:?}", self.stack.ptr());
-        println!("Top ptr: {:?}", self.current_offset);
-        let cap_used = self.stack.ptr().offset_to(self.current_offset.get()).unwrap() as usize; //We don't allocate zero typed objects
-        println!("Mem used: {}, mem left: {}", cap_used, self.stack.cap() - cap_used);
-    }
-
     fn enough_space_aligned(&self, offset_ptr: *mut u8) -> bool {
         let future_cap = self.stack.ptr().offset_to(offset_ptr).unwrap() as usize; //We don't allocate zero typed objects
         future_cap < self.stack.cap()
@@ -179,9 +165,10 @@ mod stack_allocator_test {
     fn creation_with_right_capacity() {
         //create a StackAllocator with the specified size.
         let alloc = StackAlloc::with_capacity(200);
-        let (used, remaining) = alloc.current_memory_status();
-        assert_eq!(used, 0);
-        assert_eq!(remaining, 200);
+        let cap_used = alloc.stack.ptr().offset_to(alloc.current_offset.get()).unwrap() as usize;
+        let cap_remaining = (alloc.stack.cap() - cap_used) as isize;
+        assert_eq!(cap_used, 0);
+        assert_eq!(cap_remaining, 200);
     }
 
     #[test]
@@ -214,9 +201,10 @@ mod stack_allocator_test {
         */
         //alloc.print_current_memory_status();
         let _test_1_byte = alloc.alloc::<u8>(2).unwrap();
-        let (used, remaining) = alloc.current_memory_status();
-        assert_eq!(used, 3); //3
-        assert_eq!(remaining, 197); //200 - 3
+        let cap_used = alloc.stack.ptr().offset_to(alloc.current_offset.get()).unwrap() as usize;
+        let cap_remaining = (alloc.stack.cap() - cap_used) as isize;
+        assert_eq!(cap_used, 3); //3
+        assert_eq!(cap_remaining, 197); //200 - 3
 
         /*
             U32 :
@@ -239,9 +227,10 @@ mod stack_allocator_test {
             total amount of memory used: (alignment + size) + adjustment = 9.
         */
         let _test_4_bytes = alloc.alloc::<u32>(60000).unwrap();
-        let (used, remaining) = alloc.current_memory_status();
-        assert_eq!(used, 12); //3 + 9
-        assert_eq!(remaining, 188); //200 - 3 - 9
+        let cap_used = alloc.stack.ptr().offset_to(alloc.current_offset.get()).unwrap() as usize;
+        let cap_remaining = (alloc.stack.cap() - cap_used) as isize;
+        assert_eq!(cap_used, 12); //3 + 9
+        assert_eq!(cap_remaining, 188); //200 - 3 - 9
         /*
             U64 :
             alignment : 8 byte alignment (can be aligned to addresses finishing by 0x0 0x8).
@@ -263,9 +252,10 @@ mod stack_allocator_test {
             total amount of memory used: (alignment + size) + adjustment = 20.
         */
         let _test_8_bytes = alloc.alloc::<u64>(100000).unwrap();
-        let (used, remaining) = alloc.current_memory_status();
-        assert_eq!(used, 32); // 3 + 9 + 20
-        assert_eq!(remaining, 168); //200 - 3 - 9 - 20
+        let cap_used = alloc.stack.ptr().offset_to(alloc.current_offset.get()).unwrap() as usize;
+        let cap_remaining = (alloc.stack.cap() - cap_used) as isize;
+        assert_eq!(cap_used, 32); // 3 + 9 + 20
+        assert_eq!(cap_remaining, 168); //200 - 3 - 9 - 20
     }
 
     #[test]

@@ -80,6 +80,7 @@ a Poolable trait ?
 
 */
 
+use errors::{AllocError, AllocResult};
 use pool_object::PoolObject;
 
 use std::rc::Rc;
