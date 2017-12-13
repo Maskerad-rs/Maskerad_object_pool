@@ -7,11 +7,12 @@
 
 use std::sync::Arc;
 use std::sync::Mutex;
-
 use std::ops;
 
+use errors::{AllocError, AllocResult};
 use pool_object::PoolObject;
 
+//TODO: T : Send + Sync (rwlock), or just Send (mutex), trait bound for ConcurrentPool ?
 //TODO: should we use a Mutex, or a RwLock ? Mutex = only 1 "user" at a time, RwLock = multiple reader, 1 writer.
 //TODO: RwLock would force us to have the trait bound Sync, while Mutex want Send only.
 #[derive(Default, Debug)]
@@ -77,6 +78,16 @@ impl<T: Default> ConcurrentObjectPool<T> {
                 Some(obj_ref.clone())
             },
             None => None,
+        }
+    }
+
+    pub fn create_strict(&self) -> AllocResult<ConcurrentPoolObjectHandler<T>> {
+        match self.iter().find(|obj| {!obj.lock().unwrap().is_used()}) {
+            Some(obj_ref) => {
+                obj_ref.lock().unwrap().set_used(true);
+                Ok(obj_ref.clone())
+            },
+            None => Err(AllocError::PoolError(String::from("The concurrent object pool is out of objects !"))),
         }
     }
 
@@ -259,5 +270,12 @@ mod concurrent_objectpool_tests {
         });
 
         assert_eq!(rx.recv().unwrap(), 2);
+    }
+
+    #[test]
+    fn test_create_strict() {
+        let monster_pool: ConcurrentObjectPool<Monster> = ConcurrentObjectPool::with_capacity(1);
+        let _monster = monster_pool.create_strict().unwrap();
+        assert!(monster_pool.create_strict().is_err());
     }
 }

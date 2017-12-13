@@ -85,16 +85,16 @@ use pool_object::PoolObject;
 
 use std::rc::Rc;
 use std::cell::RefCell;
-
 use std::ops;
 
 //TODO: Should pools impl a function like update() to update all its elements ? It should stay outside of the memory pools.
 //We can't create a pool returning &mut T -> calling pool.create(&mut self) -> &mut T 2 times would
 //trigger the error indicating "can mutably borrow only one time".
-//TODO: T : Send + Sync (rwlock), or just Send (mutex), trait bound for ConcurrentPool ?
+
 
 //Debug : Display some infos about the structure.
 //Default: Create our objects with a default configuration in the constructor of the ObjectPool
+//PartialEq: needed for the use of iterators and equality-tests.
 
 //We use objects handlers to use a custom drop implementation.
 
