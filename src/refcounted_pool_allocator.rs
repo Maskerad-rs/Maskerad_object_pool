@@ -79,8 +79,8 @@ see the free list solution.
 a Poolable trait ?
 
 */
-use std::sync::Arc;
-use std::sync::Mutex;
+
+use pool_object::PoolObject;
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -90,12 +90,12 @@ use std::cmp;
 use std::slice::Iter;
 use std::ops;
 
-
-//TODO: Same but with Arc<Mutex<T>> -> ConcurrentObjectPool
-//TODO: Same without pointers -> a owning object pool which implement a function (something like update() to operate on its objects)
+//TODO: Should pools impl a function like update() to update all its elements ?
+//TODO: Same without pointers -> a owning object pool returning &mut T ?
 
 //TODO: T : Send + Sync ? We should not manually implement them.
-//TODO: impl ?Sized  for RefCountedObjectPool and ConcurrentObjectPool?
+
+//TODO: impl ?Sized  for RefCountedObjectPool and ConcurrentObjectPool? A trait can't impl Default though.
 
 //TODO: We can add the free list logic, just create a trait allowing the free list logic
 // and add the logic like this : impl<T: Default + FreeListCompatible> ObjectPool<T> {}
@@ -106,7 +106,7 @@ use std::ops;
 
 //We use objects handlers to use a custom drop implementation.
 
-#[derive(Default, Debug, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Default, Debug, PartialEq)]
 pub struct PoolObjectHandler<T: Default>(Rc<RefCell<PoolObject<T>>>);
 
 impl<T: Default> ops::Deref for PoolObjectHandler<T> {
@@ -128,76 +128,6 @@ impl<T: Default> Clone for PoolObjectHandler<T> {
         PoolObjectHandler(self.0.clone())
     }
 }
-
-
-pub struct PoolObject<T: Default> {
-    object: T,
-    in_use: bool,
-}
-
-impl<T: Default> ops::Deref for PoolObject<T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        &self.object
-    }
-}
-
-impl<T: Default> ops::DerefMut for PoolObject<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.object
-    }
-}
-
-impl<T: Default + fmt::Debug> fmt::Debug for PoolObject<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Object from pool holding: {:?}. used: {:?}", self.object, self.in_use)
-    }
-}
-
-
-impl<T: Default> PoolObject<T> {
-    fn reinitialize(&mut self) {
-        self.object = T::default();
-        self.in_use = false;
-    }
-
-    fn is_used(&self) -> bool {
-        self.in_use
-    }
-
-    fn set_used(&mut self, used: bool) {
-        self.in_use = used;
-    }
-}
-
-impl<T: Default> Default for PoolObject<T> {
-    fn default() -> Self {
-        PoolObject {
-            object: T::default(),
-            in_use: false,
-        }
-    }
-}
-
-impl<T: Default + Ord> Ord for PoolObject<T> {
-    fn cmp(&self, other: &PoolObject<T>) -> cmp::Ordering {
-        self.object.cmp(&other.object)
-    }
-}
-
-impl<T: Default + PartialOrd> PartialOrd for PoolObject<T> {
-    fn partial_cmp(&self, other: &PoolObject<T>) -> Option<cmp::Ordering> {
-        self.object.partial_cmp(&other.object)
-    }
-}
-
-impl<T: Default + PartialEq> PartialEq for PoolObject<T> {
-    fn eq(&self, other: &PoolObject<T>) -> bool {
-        self.object.eq(&other.object)
-    }
-}
-
-impl<T: Default + Eq > Eq for PoolObject<T> {}
 
 
 
@@ -235,7 +165,6 @@ impl<T: Default> ObjectPool<T> {
          }
     }
 
-    //TODO: we need a closure as arg.
     pub fn force_create_with_filter<P>(&self, predicate: P) -> Option<PoolObjectHandler<T>> where
     for<'r> P: FnMut(&'r &PoolObjectHandler<T>) -> bool
     {
@@ -254,21 +183,8 @@ impl<T: Default> ObjectPool<T> {
     }
 }
 
-impl<T: Default + Ord> ObjectPool<T> {
-    pub fn force_create(&self) -> Option<PoolObjectHandler<T>> {
-        match self.iter().min() {
-            Some(obj_ref) => {
-                obj_ref.borrow_mut().reinitialize();
-                obj_ref.borrow_mut().set_used(true);
-                Some(obj_ref.clone())
-            },
-            None => None,
-        }
-    }
-}
-
 #[cfg(test)]
-mod objectpool_tests {
+mod refcounted_objectpool_tests {
     use super::*;
 
 
@@ -395,7 +311,9 @@ mod objectpool_tests {
         //monster_pool.force_create_with_filter(|obj|)
 
         monster2.borrow_mut().level_up();
-        let new_monster1 = monster_pool.force_create().unwrap();
+        let new_monster1 = monster_pool.force_create_with_filter(|obj| {
+            obj.borrow_mut().level == 1
+        }).unwrap();
         assert_eq!(Rc::strong_count(&monster), 3);
         assert_eq!(Rc::strong_count(&new_monster1), 3);
         assert_eq!(new_monster1.borrow_mut().level, 1);
