@@ -1,10 +1,22 @@
 [package]
 name = "maskerad_memory_allocator"
 version = "0.1.0"
-authors = ["Malkaviel - Maxime Capuano <maxime.capuano2@gmail.com>"]
+authors = ["Maskerad developers - <maskerad-rs.organization@protonmail.com>"]
 publish = false
-description = "A collection of memory allocators to deal with memory allocation more efficiently"
+description = "A collection of memory allocators and data structures to deal with memory allocation more efficiently"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Maskerad-rs/Maskerad_memory_allocator.git"
+readme = "README.md"
+keywords = ["memory allocator", "pool"]
+categories = ["memory-management", "game-engines", "data-structures"]
+
+[badges]
+
+appveyor = { repository = "Malkaviel/maskerad-memory-allocator", branch = "master", service = "github", project-name = "Maskerad_memory_allocator" }
+travis-ci = { repository = "Maskerad-rs/Maskerad_memory_allocator", branch = "master" }
+codecov = { repository = "Maskerad-rs/Maskerad_memory_allocator", branch = "master", service = "github" }
+is-it-maintained-issue-resolution = { repository = "Maskerad-rs/Maskerad_memory_allocator" }
+is-it-maintained-open-issues = { repository = "Maskerad-rs/Maskerad_memory_allocator" }
+maintenance = { status = "actively-developed" }
 
 [dependencies]

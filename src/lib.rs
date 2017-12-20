@@ -64,7 +64,6 @@
 extern crate alloc;
 extern crate core;
 
-pub mod stack_allocator;
 pub mod refcounted_pool_allocator;
 pub mod concurrent_pool_allocator;
 pub mod pool_object;
