@@ -1,12 +1,12 @@
 [package]
-name = "maskerad_memory_allocator"
+name = "maskerad_object_pool"
 version = "0.1.0"
 authors = ["Maskerad developers - <maskerad-rs.organization@protonmail.com>"]
 publish = false
-description = "A collection of memory allocators and data structures to deal with memory allocation more efficiently"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/Maskerad-rs/Maskerad_memory_allocator.git"
-readme = "README.md"
+description = "A collection of object pools, for more efficient dynamic memory allocation"
+license = "MIT/Apache-2.0"
+repository = "https://github.com/Maskerad-rs/Maskerad_object_pool"
+readme = "README_CRATE.md"
 keywords = ["memory allocator", "pool"]
 categories = ["memory-management", "game-engines", "data-structures"]
 
