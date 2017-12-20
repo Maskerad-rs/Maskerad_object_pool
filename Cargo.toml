@@ -12,11 +12,11 @@ categories = ["memory-management", "game-engines", "data-structures"]
 
 [badges]
 
-appveyor = { repository = "Malkaviel/maskerad-memory-allocator", branch = "master", service = "github", project-name = "Maskerad_memory_allocator" }
+appveyor = { repository = "Malkaviel/maskerad-memory-allocator", branch = "master", service = "github", project-name = "Maskerad_object_pool" }
 travis-ci = { repository = "Maskerad-rs/Maskerad_memory_allocator", branch = "master" }
-codecov = { repository = "Maskerad-rs/Maskerad_memory_allocator", branch = "master", service = "github" }
-is-it-maintained-issue-resolution = { repository = "Maskerad-rs/Maskerad_memory_allocator" }
-is-it-maintained-open-issues = { repository = "Maskerad-rs/Maskerad_memory_allocator" }
+codecov = { repository = "Maskerad-rs/Maskerad_object_pool", branch = "master", service = "github" }
+is-it-maintained-issue-resolution = { repository = "Maskerad-rs/Maskerad_object_pool" }
+is-it-maintained-open-issues = { repository = "Maskerad-rs/Maskerad_object_pool" }
 maintenance = { status = "actively-developed" }
 
 [dependencies]

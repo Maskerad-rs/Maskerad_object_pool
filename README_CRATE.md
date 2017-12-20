@@ -2,9 +2,9 @@ maskerad object pool
 ========================
 **A collection of object pools, for more efficient dynamic memory allocation.**
 
-[![codecov](https://codecov.io/gh/Maskerad-rs/maskerad_stack_allocator/branch/master/graph/badge.svg)](https://codecov.io/gh/Maskerad-rs/maskerad_stack_allocator)
-[![Build status](https://ci.appveyor.com/api/projects/status/5h6ndw7bd4b3yavl/branch/master?svg=true)](https://ci.appveyor.com/project/Malkaviel/maskerad-stack-allocator/branch/master)
-[![Build Status](https://travis-ci.org/Maskerad-rs/maskerad_stack_allocator.svg?branch=master)](https://travis-ci.org/Maskerad-rs/maskerad_stack_allocator)
+[![codecov](https://codecov.io/gh/Maskerad-rs/Maskerad_object_pool/branch/master/graph/badge.svg)](https://codecov.io/gh/Maskerad-rs/Maskerad_object_pool)
+[![Build status](https://ci.appveyor.com/api/projects/status/cda7vb6lc6uqjn3t?svg=true)](https://ci.appveyor.com/project/Malkaviel/maskerad-memory-allocator)
+[![Build Status](https://travis-ci.org/Maskerad-rs/Maskerad_memory_allocator.svg?branch=master)](https://travis-ci.org/Maskerad-rs/Maskerad_memory_allocator)
 
 [![Crates.io](https://img.shields.io/crates/v/maskerad_stack_allocator.svg)](https://crates.io/crates/maskerad_stack_allocator) [![Docs](https://docs.rs/maskerad_stack_allocator/badge.svg)](https://docs.rs/maskerad_stack_allocator)
 
