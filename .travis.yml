@@ -7,7 +7,7 @@ dist: trusty
 os:
   - linux
 
-#run builds for all Rust versions.
+#run builds for all Rust version.
 rust:
   - stable
   - beta
