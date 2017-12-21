@@ -5,91 +5,12 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-/*
-    What's an object pool ?
+use errors::{PoolError, PoolResult};
+use refcounted_pool_handler::PoolObjectHandler;
 
-    It's a collection of reusable objects, which are allocated in advance.
-    We can ask an object if he's "alive".
-
-    When the pool is initialized, it creates the entire collection of objects and initialize them
-    to the "not in use" state.
-
-    When you want a new object, you ask the pool to give the first "not in use" object.
-    When you no longer need the object, the object goes back to the "not in use" state.
-
-    From the user's perspective, he creates(allocate) and destroys(deallocate) objects, but no
-    allocations occur :
-
-    let my_object = Box::new(Monster::default()) -> allocation on the heap
-
-    let monsterPool: ObjectPool<Monster> = ObjectPool::with_capacity(20); // 20 monsters pre-allocated
-    let my_object = monsterPool.new(); //return a &mut Monster, RefCell<Monster> or something like that, and no allocation occurred.
-
-    We can maybe create a wrapper around a RefCell<my_type> and impl Drop -> set the in_use property automatically when the RefCell goes out of scope.
-*/
-
-/*
-                DESIGN DECISIONS
-
-    We want a generic object pool :
-
-    Objects contained should not have to know they are in a pool.
-    That way, any type can be pooled.
-    Since they don't know they are in a pool, the query to know if they are "in use"
-    must live outside of the objects.
-
-    It is not the pool who initialize/re-initialize the objects, it's outside code.
-    The pool will just return a mutable pointer, or reference to the first object available and mark it as used.
-    The handler of the reference or pointer will be able to use the initialization functions of the object.
-
-    Pool<T>.create() -> Option<T>. when we ask the pool to give use an object, we return an option because all objects might be in use.
-    If it returns None, we can do :
-    - nothing, don't create the object
-    - ask the pool to free an object and ask again
-    - panic and yell at the programmer that its pool is too small for what he's trying to do.
-
-    Functions needed :
-    initialization: with_capacity(usize) -> Self
-    query: create() -> Option<A reference or pointer to the object>
-    kill an object to create another :
-     force_kill(closure with a bool predicat) like force_kill(|obj| {!obj.is_on_screen()}) -> the first object outside vision cone is deleted
-
-   Data structure inside the pool :
-   - Vector ?
-   - Linked list ?
-   - a "free list" ?
-   - a simple array ?   We don't need a growable array, and since our type will probably be allocated on the heap
-                        we would have a heap-allocated array holding pointers to data allocated on the heap.
-
-
-   What's stocked :
-   - Rc<RefCell<T>> ?
-   - Arc<Mutex<T>> ? We want multi-threading in Maskerad ! maybe two versions of the objectPool.
-    - T ?
-
-*/
-
-//TODO:
-/*
-See that :
-https://en.wikipedia.org/wiki/Free_list
-https://en.wikipedia.org/wiki/Object_pool_pattern
-see the free list solution.
-
-a Poolable trait ?
-
-*/
-
-use errors::{AllocError, AllocResult};
-use pool_object::PoolObject;
-
-use std::rc::Rc;
-use std::cell::RefCell;
 use std::ops;
 
 //TODO: Should pools impl a function like update() to update all its elements ? It should stay outside of the memory pools.
-//We can't create a pool returning &mut T -> calling pool.create(&mut self) -> &mut T 2 times would
-//trigger the error indicating "can mutably borrow only one time".
 
 
 //Debug : Display some infos about the structure.
@@ -98,30 +19,57 @@ use std::ops;
 
 //We use objects handlers to use a custom drop implementation.
 
-#[derive(Default, Debug, PartialEq)]
-pub struct PoolObjectHandler<T: Default>(Rc<RefCell<PoolObject<T>>>);
-
-impl<T: Default> ops::Deref for PoolObjectHandler<T> {
-    type Target = Rc<RefCell<PoolObject<T>>>;
-
-    fn deref(&self) -> &Rc<RefCell<PoolObject<T>>> {
-        &self.0
-    }
-}
-
-impl<T: Default> Drop for PoolObjectHandler<T> {
-    fn drop(&mut self) {
-        self.borrow_mut().reinitialize();
-    }
-}
-
-impl<T: Default> Clone for PoolObjectHandler<T> {
-    fn clone(&self) -> PoolObjectHandler<T> {
-        PoolObjectHandler(self.0.clone())
-    }
-}
 
 
+/// A wrapper around a vector of Handler.
+///
+/// #Example
+/// ```
+/// use maskerad_object_pool::ObjectPool;
+///
+/// struct Monster {
+/// hp :u32,
+/// pub level: u32,
+/// }
+///
+/// impl Default for Monster {
+///     fn default() -> Self {
+///         Monster {
+///             hp: 1,
+///             level: 1,
+///         }
+///     }
+/// }
+///
+/// impl Monster {
+///     pub fn level_up(&mut self) {
+///         self.level += 1;
+///     }
+/// }
+///
+/// //create 20 monsters with default initialization
+/// let pool: ObjectPool<Monster> = ObjectPool::with_capacity(20);
+///
+/// {
+///     //Get the first "non-used" monster.
+///     let a_monster = pool.create().unwrap();
+///     a_monster.borrow_mut().level_up();
+///     assert_eq!(a_monster.borrow_mut().level, 2);
+///
+///     //The monster is now used
+///     assert_eq!(pool.nb_unused(), 19);
+///
+///     //After the closing brace, the handle to the monster will be
+///     //dropped. It will reinitialize the monster to its default configuration
+///     //with the Default trait, and set it back to the non-used state.
+/// }
+///
+/// assert_eq!(pool.nb_unused(), 20);
+///
+/// //The object pool is just wrapper around a vector, you can use vector-related functions.
+/// assert!(pool.iter().find(|monster| { monster.borrow_mut().level == 2 } ).is_none());
+/// ```
+pub struct RefCountedObjectPool<T: Default>(Vec<PoolObjectHandler<T>>);
 
 
 impl<T: Default> ops::Deref for RefCountedObjectPool<T> {
@@ -132,10 +80,17 @@ impl<T: Default> ops::Deref for RefCountedObjectPool<T> {
     }
 }
 
-pub struct RefCountedObjectPool<T: Default>(Vec<PoolObjectHandler<T>>);
-
-
 impl<T: Default> RefCountedObjectPool<T> {
+
+    /// Create an object pool with the given capacity, and instantiate the given number of object
+    /// with their default initialization (Default trait).
+    /// # Example
+    /// ```
+    /// use maskerad_object_pool::ObjectPool;
+    ///
+    /// let pool: ObjectPool<String> = ObjectPool::with_capacity(20);
+    /// assert_eq!(pool.nb_unused(), 20);
+    /// ```
     pub fn with_capacity(size: usize) -> Self {
         let mut objects = Vec::with_capacity(size);
 
@@ -147,16 +102,58 @@ impl<T: Default> RefCountedObjectPool<T> {
 
     }
 
-    pub fn create_strict(&self) -> AllocResult<PoolObjectHandler<T>> {
+    /// Ask the pool for an object, returning a Result. If you cannot increase the pool size because of
+    /// memory restrictions, this function may be more convenient than the "non-strict" one.
+    /// # Errors
+    /// If all objects are used, a PoolError is returned indicating that all objects are used.
+    /// # Example
+    /// ```
+    /// use maskerad_object_pool::ObjectPool;
+    ///
+    /// let pool: ObjectPool<String> = ObjectPool::with_capacity(1);
+    ///
+    /// let a_string = pool.create_strict().unwrap();
+    /// assert!(pool.create_strict().is_err());
+    /// ```
+    pub fn create_strict(&self) -> PoolResult<PoolObjectHandler<T>> {
         match self.iter().find(|obj| {!obj.borrow_mut().is_used()}) {
             Some(obj_ref) => {
                 obj_ref.borrow_mut().set_used(true);
                 Ok(obj_ref.clone())
             },
-            None => Err(AllocError::PoolError(String::from("The reference counted object pool is out of objects !"))),
+            None => Err(PoolError::PoolError(String::from("The reference counted object pool is out of objects !"))),
         }
     }
 
+    /// Asks the pool for an object, returning an Option.
+    ///
+    /// # Error
+    /// if None is returned, you might want to:
+    ///
+    /// - use force_create_with_filter to reinitialize an used object, according to a predicat.
+    ///
+    /// - do nothing.
+    ///
+    /// - panic.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use maskerad_object_pool::ObjectPool;
+    ///
+    /// let pool: ObjectPool<String> = ObjectPool::with_capacity(1);
+    ///
+    /// let a_string = pool.create().unwrap();
+    /// assert!(pool.create().is_none());
+    ///
+    /// match pool.create() {
+    ///     Some(string) => println!("will not happen."),
+    ///     None => {
+    ///         // do something, or nothing.
+    ///     },
+    /// }
+    ///
+    /// ```
     pub fn create(&self) -> Option<PoolObjectHandler<T>> {
          match self.iter().find(|obj| {!obj.borrow_mut().is_used()}) {
              Some(obj_ref) => {
@@ -167,6 +164,35 @@ impl<T: Default> RefCountedObjectPool<T> {
          }
     }
 
+    /// Ask to pool to reinitialize an used object according to a predicat, returning an Option.
+    ///
+    /// # Error
+    /// This function will return None if the pool could not find an object matching this predicat.
+    ///
+    /// # Warning
+    /// Be careful with this function, you will reinitialize an used object, but the handler to this object is still there
+    /// and might mutate the object.
+    ///
+    /// # Example
+    /// ```
+    /// use maskerad_object_pool::ObjectPool;
+    ///
+    /// let pool: ObjectPool<String> = ObjectPool::with_capacity(1);
+    /// let a_string = pool.create().unwrap();
+    ///
+    /// a_string.borrow_mut().push_str("I'm an used string !");
+    /// assert!(pool.create().is_none());
+    ///
+    /// let a_new_string = pool.force_create_with_filter(|the_contained_string| {
+    ///     the_contained_string.borrow_mut().contains("string")
+    /// });
+    /// assert!(a_new_string.is_some());
+    ///
+    /// let maybe_another_string = pool.force_create_with_filter(|the_contained_string| {
+    ///     the_contained_string.borrow_mut().contains("strong")
+    /// });
+    /// assert!(maybe_another_string.is_none());
+    /// ```
     pub fn force_create_with_filter<P>(&self, predicate: P) -> Option<PoolObjectHandler<T>> where
     for<'r> P: FnMut(&'r &PoolObjectHandler<T>) -> bool
     {
@@ -180,6 +206,16 @@ impl<T: Default> RefCountedObjectPool<T> {
         }
     }
 
+    /// Return the number of non-used objects in the pool.
+    /// # Example
+    /// ```
+    /// use maskerad_object_pool::ObjectPool;
+    ///
+    /// let pool: ObjectPool<String> = ObjectPool::with_capacity(2);
+    /// assert_eq!(pool.nb_unused(), 2);
+    /// let a_string = pool.create().unwrap();
+    /// assert_eq!(pool.nb_unused(), 1);
+    /// ```
     pub fn nb_unused(&self) -> usize {
         self.iter().filter(|obj| !obj.0.borrow_mut().is_used()).count()
     }
@@ -188,7 +224,7 @@ impl<T: Default> RefCountedObjectPool<T> {
 #[cfg(test)]
 mod refcounted_objectpool_tests {
     use super::*;
-
+    use std::rc::Rc;
 
     #[derive(Ord, PartialOrd, Eq, PartialEq, Debug)]
     pub struct Monster {

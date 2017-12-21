@@ -6,7 +6,7 @@ maskerad object pool
 [![Build status](https://ci.appveyor.com/api/projects/status/cda7vb6lc6uqjn3t?svg=true)](https://ci.appveyor.com/project/Malkaviel/maskerad-memory-allocator)
 [![Build Status](https://travis-ci.org/Maskerad-rs/Maskerad_memory_allocator.svg?branch=master)](https://travis-ci.org/Maskerad-rs/Maskerad_memory_allocator)
 
-[![Crates.io](https://img.shields.io/crates/v/maskerad_stack_allocator.svg)](https://crates.io/crates/maskerad_stack_allocator) [![Docs](https://docs.rs/maskerad_stack_allocator/badge.svg)](https://docs.rs/maskerad_stack_allocator)
+!TODO! [![Crates.io](https://img.shields.io/crates/v/maskerad_stack_allocator.svg)](https://crates.io/crates/maskerad_stack_allocator) [![Docs](https://docs.rs/maskerad_stack_allocator/badge.svg)](https://docs.rs/maskerad_stack_allocator)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 

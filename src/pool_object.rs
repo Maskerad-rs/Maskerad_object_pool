@@ -9,6 +9,13 @@ use std::cmp;
 use std::fmt;
 use std::ops;
 
+//TODO: instead of having a wrapper adding the use-state, when can check with the number of references to the object.
+// If it's 1, only the pool have a reference -> no used.
+// If it's > 1, someone else have a reference too -> used.
+
+/// A thin wrapper around an object, adding the usage state in an object-agnostic way.
+///
+/// The wrapped object must be bound to the Default trait.
 pub struct PoolObject<T: Default> {
     object: T,
     in_use: bool,
@@ -35,15 +42,18 @@ impl<T: Default + fmt::Debug> fmt::Debug for PoolObject<T> {
 
 
 impl<T: Default> PoolObject<T> {
+    /// Reinitialize the object to a default (Default trait), non used, state.
     pub fn reinitialize(&mut self) {
         self.object = T::default();
         self.in_use = false;
     }
 
+    /// Return the usage state of the object.
     pub fn is_used(&self) -> bool {
         self.in_use
     }
 
+    /// Set the usage state of the object.
     pub fn set_used(&mut self, used: bool) {
         self.in_use = used;
     }

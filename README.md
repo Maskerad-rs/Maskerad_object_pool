@@ -12,14 +12,24 @@ This library provides 2 data structures to deal with dynamic memory allocation m
 - An object pool for **single-threaded** contexts
 - An object pool for **multi-threaded** contexts
 
+Usage
+-----
+### Installation
+!TODO!
+
+This library is available on [crates.io](https://crates.io/crates/maskerad_object_pool)
+
 ## What is an object pool ?
-TODO what is it, in which context should i use it
+An **Object Pool** is a structure maintaining a collection of **reusable** objects.
 
-## What is the difference between the two object pools provided ?
-Both structures share the same API, but the object pool for multi-threaded context manages
-**Arc<Mutex<T>>** objects, while the other manages **Rc<RefCell<T>>** objects.
+When the pool is instantiated, a given number of objects are allocated on the Heap. Those
+objects manage an **usage-state**, this state have the value **not used** when the objects are
+instantiated.
 
-Take a look to the crate documentation, and the Rust documentation for more informations.
+When the user want to **create** a new object, he asks the pool for one. The pool will return the
+first *not used* object in its pool, and set the object as *used*.
+
+When the object is **dropped**, the object return to its original state and is set to *not used*. 
 
 ### Potential benefices compared to heap allocation
 It *can* be **faster**: Allocations have been made in advance, when the user create objects 
@@ -30,17 +40,23 @@ state.
 It prevents **memory fragmentation**: We allocate a big chunk of memory full of ready-to-use objects. Even though
 the user is creating and dropping/destroying objects, no allocations and *frees* are occurring.
 
-Usage
------
-### Installation
-!TODO!
+## What is the difference between the two object pools provided ?
+Both structures share the same API, but the object pool for multi-threaded context manages
+**Arc<Mutex<T>>** objects, while the other manages **Rc<RefCell<T>>** objects.
 
-This library is available on [crates.io](https://crates.io/crates/maskerad_stack_allocator)
+Take a look to the crate documentation, and the Rust documentation for more informations.
 
-### Example
+## Known issues
+The search of a *not used* object in the pool has an **O(n)** complexity. If your has **n** objects,
+and the only one *not used* object is the last, the pool will take **n** steps to return the
+object.
 
-## Benchmarks
-TODO
+There is a trick to reduce this complexity to **O(1)**: a **[Free List](http://gameprogrammingpatterns.com/object-pool.html#a-free-list)**
+
+However, implementing this solution in Rust for a generic object pool managed to be troublesome.
+Definitely possible for a specialized object which can allow it easily, though.
+
+
 
 Context
 ---------------------------------------
@@ -95,6 +111,8 @@ solution to this type of allocation.
 [Game Programming Patterns, Chapter 19, about Object Pools](http://gameprogrammingpatterns.com/object-pool.html)
 
 [Wikipedia article about Object Pools](https://en.wikipedia.org/wiki/Memory_pool)
+
+[Wikipedia article about free lists](https://en.wikipedia.org/wiki/Free_list)
 
 ## License
 

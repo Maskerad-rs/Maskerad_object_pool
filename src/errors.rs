@@ -8,31 +8,33 @@
 use std::fmt;
 use std::error::Error;
 
+/// A custom error enumeration, used by PoolResult as the error type.
 #[derive(Debug)]
-pub enum AllocError {
+pub enum PoolError {
     PoolError(String),
 }
 
-impl fmt::Display for AllocError {
+impl fmt::Display for PoolError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &AllocError::PoolError(ref description) => write!(f, "Object Pool Error: {}", description),
+            &PoolError::PoolError(ref description) => write!(f, "Object Pool Error: {}", description),
         }
     }
 }
 
-impl Error for AllocError {
+impl Error for PoolError {
     fn description(&self) -> &str {
         match self {
-            &AllocError::PoolError(_) => "PoolError",
+            &PoolError::PoolError(_) => "PoolError",
         }
     }
 
     fn cause(&self) -> Option<&Error> {
         match self {
-            &AllocError::PoolError(_) => None,
+            &PoolError::PoolError(_) => None,
         }
     }
 }
 
-pub type AllocResult<T> = Result<T, AllocError>;
+/// A simple typedef, for convenience.
+pub type PoolResult<T> = Result<T, PoolError>;
