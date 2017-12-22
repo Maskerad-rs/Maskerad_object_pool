@@ -1,6 +1,6 @@
 [package]
 name = "maskerad_object_pool"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Maskerad developers - <maskerad-rs.organization@protonmail.com>"]
 description = "A collection of object pools, for more efficient dynamic memory allocation"
 license = "MIT/Apache-2.0"

@@ -4,7 +4,7 @@ maskerad object pool
 
 [![codecov](https://codecov.io/gh/Maskerad-rs/Maskerad_object_pool/branch/master/graph/badge.svg)](https://codecov.io/gh/Maskerad-rs/Maskerad_object_pool)
 [![Build status](https://ci.appveyor.com/api/projects/status/cda7vb6lc6uqjn3t?svg=true)](https://ci.appveyor.com/project/Malkaviel/maskerad-memory-allocator)
-[![Build Status](https://travis-ci.org/Maskerad-rs/Maskerad_memory_allocator.svg?branch=master)](https://travis-ci.org/Maskerad-rs/Maskerad_memory_allocator)
+[![Build Status](https://travis-ci.org/Maskerad-rs/Maskerad_object_pool.svg?branch=master)](https://travis-ci.org/Maskerad-rs/Maskerad_object_pool)
 
 [![Crates.io](https://img.shields.io/crates/v/maskerad_object_pool.svg)](https://crates.io/crates/maskerad_object_pool) [![Docs](https://docs.rs/maskerad_object_pool/badge.svg)](https://docs.rs/maskerad_object_pool)
 
