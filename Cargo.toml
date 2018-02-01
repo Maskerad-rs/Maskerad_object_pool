@@ -19,11 +19,4 @@ is-it-maintained-open-issues = { repository = "Maskerad-rs/Maskerad_object_pool"
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-
-[dev-dependencies]
-bencher = "0.1.4"
-time = "0.1.38"
-
-[[bench]]
-name = "speed_comparison"
-harness = false
+serde = { version = "~1.0", optional = true, features = ["derive"] }

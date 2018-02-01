@@ -2,7 +2,6 @@ maskerad object pool
 ========================
 **A collection of object pools, for more efficient dynamic memory allocation.**
 
-[![codecov](https://codecov.io/gh/Maskerad-rs/Maskerad_object_pool/branch/master/graph/badge.svg)](https://codecov.io/gh/Maskerad-rs/Maskerad_object_pool)
 [![Build status](https://ci.appveyor.com/api/projects/status/cda7vb6lc6uqjn3t?svg=true)](https://ci.appveyor.com/project/Malkaviel/maskerad-memory-allocator)
 [![Build Status](https://travis-ci.org/Maskerad-rs/Maskerad_object_pool.svg?branch=master)](https://travis-ci.org/Maskerad-rs/Maskerad_object_pool)
 

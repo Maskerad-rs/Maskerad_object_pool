@@ -1,4 +1,4 @@
-// Copyright 2017 Maskerad Developers
+// Copyright 2017 -2018 Maskerad Developers
 //
 // Licensed under the Apache License, Version 2.0, <LICENSE-APACHE or
 // http://apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or
@@ -14,10 +14,15 @@ pub enum PoolError {
     PoolError(String),
 }
 
+unsafe impl Send for PoolError {}
+unsafe impl Sync for PoolError {}
+
 impl fmt::Display for PoolError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &PoolError::PoolError(ref description) => write!(f, "Object Pool Error: {}", description),
+            &PoolError::PoolError(ref description) => {
+                write!(f, "Object Pool Error: {}", description)
+            }
         }
     }
 }
