@@ -41,22 +41,6 @@ state.
 It prevents **memory fragmentation**: We allocate a big chunk of memory full of ready-to-use objects. Even though
 the user is creating and dropping/destroying objects, no allocations and *frees* are occurring.
 
-## What is the difference between the two object pools provided ?
-Both structures share the same API, but the object pool for multi-threaded context manages
-**Arc<Mutex<T>>** objects, while the other manages **Rc<RefCell<T>>** objects.
-
-Take a look to the crate documentation, and the Rust documentation for more informations.
-
-## Known issues
-The search of a *not used* object in the pool has an **O(n)** complexity. If your has **n** objects,
-and the only one *not used* object is the last, the pool will take **n** steps to return the
-object.
-
-There is a trick to reduce this complexity to **O(1)**: a **[Free List](http://gameprogrammingpatterns.com/object-pool.html#a-free-list)**
-
-However, implementing this solution in Rust for a generic object pool managed to be troublesome.
-Definitely possible for a specialized object which can allow it easily, though.
-
 
 
 Context

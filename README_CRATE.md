@@ -9,6 +9,12 @@ maskerad object pool
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
+**A collection of object pools, for more efficient dynamic memory allocation.**
+
+This library provides 2 data structures to deal with dynamic memory allocation more efficiently :
+- An object pool for **single-threaded** contexts
+- An object pool for **multi-threaded** contexts
+
 ### More informations
 
 See the [github repository](https://github.com/Maskerad-rs/Maskerad_object_pool) for more informations on this crate.
