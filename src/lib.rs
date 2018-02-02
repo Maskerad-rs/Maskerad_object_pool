@@ -113,7 +113,7 @@
 //! # }
 //! ```
 
-#![doc(html_root_url = "https://doc.rs/maskerad_object_pool/0.2.0")]
+#![doc(html_root_url = "https://doc.rs/maskerad_object_pool/0.2.2")]
 
 #[cfg(feature = "serde")]
 #[macro_use]
