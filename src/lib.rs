@@ -26,7 +26,7 @@
 //!
 //! In order to create a pool of `T`, `T` must implement the `Recyclable` trait.
 //!
-//!```rust
+//! ```rust
 //! use maskerad_object_pool::RcPool;
 //! use maskerad_object_pool::Recyclable;
 //! # use std::error::Error;
