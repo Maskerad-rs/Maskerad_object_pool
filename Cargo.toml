@@ -1,7 +1,7 @@
 [package]
 name = "maskerad_object_pool"
 version = "0.2.0"
-authors = ["Maskerad developers - <maskerad-rs.organization@protonmail.com>"]
+authors = ["Maskerad developers <maskerad-rs.organization@protonmail.com>"]
 description = "A collection of object pools, for more efficient dynamic memory allocation"
 license = "MIT/Apache-2.0"
 repository = "https://github.com/Maskerad-rs/Maskerad_object_pool"
