@@ -7,9 +7,9 @@
 
 use errors::{PoolError, PoolResult};
 use concurrent_pool_handler::ArcHandle;
-use pool_object::Poolable;
+use pool_object::Recyclable;
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 /// A wrapper around a vector of `ArcHandle<T>`.
 ///
@@ -17,7 +17,7 @@ use std::sync::{Arc, RwLock};
 ///
 /// ```rust
 /// use maskerad_object_pool::ArcPool;
-/// # use maskerad_object_pool::Poolable;
+/// # use maskerad_object_pool::Recyclable;
 /// # use std::error::Error;
 /// #
 /// # struct Monster {
@@ -34,7 +34,7 @@ use std::sync::{Arc, RwLock};
 /// #    }
 /// # }
 /// #
-/// # impl Poolable for Monster {
+/// # impl Recyclable for Monster {
 /// #   fn reinitialize(&mut self) {
 /// #       self.level = 1;
 /// #   }
@@ -79,17 +79,16 @@ use std::sync::{Arc, RwLock};
 /// ```
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct ArcPool<T: Poolable>(Vec<ArcHandle<T>>);
+pub struct ArcPool<T: Recyclable>(Vec<ArcHandle<T>>);
 
-impl<T: Poolable> ArcPool<T> {
+impl<T: Recyclable> ArcPool<T> {
     /// Create an object pool with the given capacity, and instantiate the given number of object.
     ///
     /// # Example
     ///
     /// ```rust
     /// use maskerad_object_pool::ArcPool;
-    /// # use maskerad_object_pool::Poolable;
-    /// # use std::error::Error;
+    /// # use maskerad_object_pool::Recyclable;
     /// #
     /// # struct Monster {
     /// # hp :u32,
@@ -105,7 +104,7 @@ impl<T: Poolable> ArcPool<T> {
     /// #    }
     /// # }
     /// #
-    /// # impl Poolable for Monster {
+    /// # impl Recyclable for Monster {
     /// #   fn reinitialize(&mut self) {
     /// #       self.level = 1;
     /// #   }
@@ -128,14 +127,59 @@ impl<T: Poolable> ArcPool<T> {
         let mut objects = Vec::with_capacity(size);
 
         for _ in 0..size {
-            objects.push(ArcHandle(Arc::new(RwLock::new(op()))));
+            objects.push(ArcHandle::new(op()));
         }
 
         ArcPool(objects)
     }
 
     /// Returns an immutable slice of the vector of `ArcHandle<T>`
-    pub fn pool(&self) -> &[ArcHandle<T>] {
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use maskerad_object_pool::ArcPool;
+    /// # use maskerad_object_pool::Recyclable;
+    /// #
+    /// # struct Monster {
+    /// # hp :u32,
+    /// # pub level: u32,
+    /// # }
+    /// #
+    /// # impl Default for Monster {
+    /// #    fn default() -> Self {
+    /// #        Monster {
+    /// #            hp: 10,
+    /// #            level: 10,
+    /// #        }
+    /// #    }
+    /// # }
+    /// #
+    /// # impl Recyclable for Monster {
+    /// #   fn reinitialize(&mut self) {
+    /// #       self.level = 1;
+    /// #   }
+    /// # }
+    /// #
+    /// # impl Monster {
+    /// #    pub fn level_up(&mut self) {
+    /// #        self.level += 1;
+    /// #    }
+    /// # }
+    /// let pool = ArcPool::with_capacity(20, || {
+    ///     Monster::default()
+    /// });
+    /// let nb_lvl_6_monsters = pool.pool_slice()
+    /// .iter()
+    /// .filter(|handle| {
+    ///     handle.read().unwrap().level == 6
+    /// })
+    /// .count();
+    ///
+    /// //All monsters start at level 10, there is no monsters at level 6.
+    /// assert_eq!(nb_lvl_6_monsters, 0);
+    /// ```
+    pub fn pool_slice(&self) -> &[ArcHandle<T>] {
         &self.0
     }
 
@@ -149,7 +193,7 @@ impl<T: Poolable> ArcPool<T> {
     ///
     /// ```rust
     /// use maskerad_object_pool::ArcPool;
-    /// # use maskerad_object_pool::Poolable;
+    /// # use maskerad_object_pool::Recyclable;
     /// # use std::error::Error;
     /// #
     /// # struct Monster {
@@ -166,7 +210,7 @@ impl<T: Poolable> ArcPool<T> {
     /// #    }
     /// # }
     /// #
-    /// # impl Poolable for Monster {
+    /// # impl Recyclable for Monster {
     /// #   fn reinitialize(&mut self) {
     /// #       self.level = 1;
     /// #   }
@@ -194,7 +238,7 @@ impl<T: Poolable> ArcPool<T> {
     /// # }
     /// ```
     pub fn create_strict(&self) -> PoolResult<ArcHandle<T>> {
-        match self.pool()
+        match self.pool_slice()
             .iter()
             .find(|obj| Arc::strong_count(obj.as_ref()) == 1)
         {
@@ -211,8 +255,7 @@ impl<T: Poolable> ArcPool<T> {
     ///
     /// ```rust
     /// use maskerad_object_pool::ArcPool;
-    /// # use maskerad_object_pool::Poolable;
-    /// # use std::error::Error;
+    /// # use maskerad_object_pool::Recyclable;
     /// #
     /// # struct Monster {
     /// # hp :u32,
@@ -228,7 +271,7 @@ impl<T: Poolable> ArcPool<T> {
     /// #    }
     /// # }
     /// #
-    /// # impl Poolable for Monster {
+    /// # impl Recyclable for Monster {
     /// #   fn reinitialize(&mut self) {
     /// #       self.level = 1;
     /// #   }
@@ -239,8 +282,6 @@ impl<T: Poolable> ArcPool<T> {
     /// #        self.level += 1;
     /// #    }
     /// # }
-    /// #
-    /// # fn try_main() -> Result<(), Box<Error>> {
     /// let pool = ArcPool::with_capacity(1, || {
     ///     Monster::default()
     /// });
@@ -255,16 +296,9 @@ impl<T: Poolable> ArcPool<T> {
     ///         // do something, or nothing.
     ///     },
     /// }
-    /// #
-    /// #   Ok(())
-    /// # }
-    /// #
-    /// # fn main() {
-    /// #   try_main().unwrap();
-    /// # }
     /// ```
     pub fn create(&self) -> Option<ArcHandle<T>> {
-        match self.pool()
+        match self.pool_slice()
             .iter()
             .find(|obj| Arc::strong_count(obj.as_ref()) == 1)
         {
@@ -274,11 +308,12 @@ impl<T: Poolable> ArcPool<T> {
     }
 
     /// Return the number of non-used `ArcHandle<T>` in the pool.
+    ///
     /// # Example
+    ///
     /// ```rust
     /// use maskerad_object_pool::ArcPool;
-    /// # use maskerad_object_pool::Poolable;
-    /// # use std::error::Error;
+    /// # use maskerad_object_pool::Recyclable;
     /// #
     /// # struct Monster {
     /// # hp :u32,
@@ -294,7 +329,7 @@ impl<T: Poolable> ArcPool<T> {
     /// #    }
     /// # }
     /// #
-    /// # impl Poolable for Monster {
+    /// # impl Recyclable for Monster {
     /// #   fn reinitialize(&mut self) {
     /// #       self.level = 1;
     /// #   }
@@ -305,7 +340,6 @@ impl<T: Poolable> ArcPool<T> {
     /// #        self.level += 1;
     /// #    }
     /// # }
-    ///
     /// let pool = ArcPool::with_capacity(2, || {
     ///     Monster::default()
     /// });
@@ -315,13 +349,50 @@ impl<T: Poolable> ArcPool<T> {
     /// assert_eq!(pool.nb_unused(), 1);
     /// ```
     pub fn nb_unused(&self) -> usize {
-        self.pool()
+        self.pool_slice()
             .iter()
             .filter(|obj| Arc::strong_count(obj.as_ref()) == 1)
             .count()
     }
 
     /// Returns the maximum capacity of the vector of `ArcHandle<T>`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use maskerad_object_pool::ArcPool;
+    /// # use maskerad_object_pool::Recyclable;
+    /// #
+    /// # struct Monster {
+    /// # hp :u32,
+    /// # pub level: u32,
+    /// # }
+    /// #
+    /// # impl Default for Monster {
+    /// #    fn default() -> Self {
+    /// #        Monster {
+    /// #            hp: 10,
+    /// #            level: 10,
+    /// #        }
+    /// #    }
+    /// # }
+    /// #
+    /// # impl Recyclable for Monster {
+    /// #   fn reinitialize(&mut self) {
+    /// #       self.level = 1;
+    /// #   }
+    /// # }
+    /// #
+    /// # impl Monster {
+    /// #    pub fn level_up(&mut self) {
+    /// #        self.level += 1;
+    /// #    }
+    /// # }
+    /// let pool = ArcPool::with_capacity(2, || {
+    ///     Monster::default()
+    /// });
+    /// assert_eq!(pool.capacity(), 2);
+    /// ```
     pub fn capacity(&self) -> usize {
         self.0.capacity()
     }
@@ -331,7 +402,7 @@ impl<T: Poolable> ArcPool<T> {
 mod refcounted_objectpool_tests {
     use super::*;
     use std::sync::Arc;
-    use pool_object::Poolable;
+    use pool_object::Recyclable;
 
     #[derive(Ord, PartialOrd, Eq, PartialEq, Debug)]
     pub struct Monster {
@@ -364,7 +435,7 @@ mod refcounted_objectpool_tests {
         }
     }
 
-    impl Poolable for Monster {
+    impl Recyclable for Monster {
         fn reinitialize(&mut self) {
             self.level = 1;
             self.hp = 1;
@@ -380,7 +451,7 @@ mod refcounted_objectpool_tests {
     #[test]
     fn test_is_used_at_initialization() {
         let monster_pool = ArcPool::with_capacity(14, || Monster::default());
-        for monster in monster_pool.pool().iter() {
+        for monster in monster_pool.pool_slice().iter() {
             assert_eq!(Arc::strong_count(monster.as_ref()), 1);
         }
     }
@@ -407,7 +478,7 @@ mod refcounted_objectpool_tests {
         }
         assert_eq!(monster_pool.nb_unused(), 9);
         let nb_monster_with_1_ref = monster_pool
-            .pool()
+            .pool_slice()
             .iter()
             .filter(|obj| Arc::strong_count(obj.as_ref()) == 1)
             .count();
@@ -415,7 +486,7 @@ mod refcounted_objectpool_tests {
         assert_eq!(nb_monster_with_1_ref, 9);
 
         let nb_monster_with_1_hp = monster_pool
-            .pool()
+            .pool_slice()
             .iter()
             .filter(|obj| obj.read().unwrap().hp() == 1)
             .count();
@@ -440,7 +511,7 @@ mod refcounted_objectpool_tests {
         monster.write().unwrap().level_up();
         assert_eq!(monster.read().unwrap().level(), 11);
         let nb_monster_lvl_11 = monster_pool
-            .pool()
+            .pool_slice()
             .iter()
             .filter(|obj| obj.read().unwrap().level() > 10)
             .count();

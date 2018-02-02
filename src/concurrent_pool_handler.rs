@@ -5,9 +5,9 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use std::sync::{Arc, LockResult, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard,
+use std::sync::{Arc, LockResult, RwLock, RwLockReadGuard, RwLockWriteGuard, TryLockError,
                 TryLockResult};
-use pool_object::Poolable;
+use pool_object::Recyclable;
 
 /// A wrapper around a `Arc` pointer to a `RwLock<Poolable>` object.
 ///
@@ -20,25 +20,41 @@ use pool_object::Poolable;
 /// if its strong reference count is equal to two. If it is the case, the object is reinitialized, the inner `Arc` is dropped and the strong
 /// reference count decrease to 1, meaning that the only structure holding a reference is the `ArcPool` itself.
 #[derive(Debug)]
-pub struct ArcHandle<T: Poolable>(pub Arc<RwLock<T>>);
+pub struct ArcHandle<T: Recyclable>(pub Arc<RwLock<T>>);
 
-impl<T: Poolable> AsRef<Arc<RwLock<T>>> for ArcHandle<T> {
+impl<T: Recyclable> AsRef<Arc<RwLock<T>>> for ArcHandle<T> {
     fn as_ref(&self) -> &Arc<RwLock<T>> {
         &self.0
     }
 }
 
-impl<T: Poolable> ArcHandle<T> {
+impl<T: Recyclable> ArcHandle<T> {
+    /// Creates a new `ArcHandle` from a `Recyclable` object.
+    #[doc(hidden)]
+    pub fn new(item: T) -> Self {
+        ArcHandle(Arc::new(RwLock::new(item)))
+    }
+
     /// Locks this rwlock with shared read access, blocking the current thread until it can be acquired.
     ///
     /// Refer to the [RwLock::read](https://doc.rust-lang.org/std/sync/struct.RwLock.html#method.read)
     /// method for more information.
     ///
+    /// # Errors
+    ///
+    /// This function will return an error if the RwLock is poisoned.
+    /// An RwLock is poisoned whenever a writer panics while holding an exclusive lock.
+    /// The failure will occur immediately after the lock has been acquired.
+    ///
+    /// # Panics
+    ///
+    /// This function might panic when called if the lock is already held by the current thread.
+    ///
     /// # Example
     ///
     /// ```rust
     /// use maskerad_object_pool::ArcPool;
-    /// # use maskerad_object_pool::Poolable;
+    /// # use maskerad_object_pool::Recyclable;
     /// # use std::error::Error;
     /// #
     /// # struct Monster {
@@ -55,7 +71,7 @@ impl<T: Poolable> ArcHandle<T> {
     /// #    }
     /// # }
     /// #
-    /// # impl Poolable for Monster {
+    /// # impl Recyclable for Monster {
     /// #   fn reinitialize(&mut self) {
     /// #       self.level = 1;
     /// #   }
@@ -91,11 +107,17 @@ impl<T: Poolable> ArcHandle<T> {
     /// Refer to the [RwLock::try_read](https://doc.rust-lang.org/std/sync/struct.RwLock.html#method.try_read)
     /// method for more information.
     ///
+    /// # Errors
+    ///
+    /// This function will return an error if the RwLock is poisoned.
+    /// An RwLock is poisoned whenever a writer panics while holding an exclusive lock.
+    /// An error will only be returned if the lock would have otherwise been acquired.
+    ///
     /// # Example
     ///
     /// ```rust
     /// use maskerad_object_pool::ArcPool;
-    /// # use maskerad_object_pool::Poolable;
+    /// # use maskerad_object_pool::Recyclable;
     /// # use std::error::Error;
     /// #
     /// # struct Monster {
@@ -112,7 +134,7 @@ impl<T: Poolable> ArcHandle<T> {
     /// #    }
     /// # }
     /// #
-    /// # impl Poolable for Monster {
+    /// # impl Recyclable for Monster {
     /// #   fn reinitialize(&mut self) {
     /// #       self.level = 1;
     /// #   }
@@ -149,11 +171,21 @@ impl<T: Poolable> ArcHandle<T> {
     /// Refer to the [RwLock::write](https://doc.rust-lang.org/std/sync/struct.RwLock.html#method.write)
     /// method for more information.
     ///
+    /// # Errors
+    ///
+    /// This function will return an error if the RwLock is poisoned.
+    /// An RwLock is poisoned whenever a writer panics while holding an exclusive lock.
+    /// An error will be returned when the lock is acquired.
+    ///
+    /// # Panics
+    ///
+    /// This function might panic when called if the lock is already held by the current thread.
+    ///
     /// # Example
     ///
     /// ```rust
     /// use maskerad_object_pool::ArcPool;
-    /// # use maskerad_object_pool::Poolable;
+    /// # use maskerad_object_pool::Recyclable;
     /// # use std::error::Error;
     /// #
     /// # struct Monster {
@@ -170,7 +202,7 @@ impl<T: Poolable> ArcHandle<T> {
     /// #    }
     /// # }
     /// #
-    /// # impl Poolable for Monster {
+    /// # impl Recyclable for Monster {
     /// #   fn reinitialize(&mut self) {
     /// #       self.level = 1;
     /// #   }
@@ -207,11 +239,17 @@ impl<T: Poolable> ArcHandle<T> {
     /// Refer to the [RwLock::try_write](https://doc.rust-lang.org/std/sync/struct.RwLock.html#method.try_write)
     /// method for more information.
     ///
+    /// # Errors
+    ///
+    /// This function will return an error if the RwLock is poisoned.
+    /// An RwLock is poisoned whenever a writer panics while holding an exclusive lock.
+    /// An error will only be returned if the lock would have otherwise been acquired.
+    ///
     /// # Example
     ///
     /// ```rust
     /// use maskerad_object_pool::ArcPool;
-    /// # use maskerad_object_pool::Poolable;
+    /// # use maskerad_object_pool::Recyclable;
     /// # use std::error::Error;
     /// #
     /// # struct Monster {
@@ -228,7 +266,7 @@ impl<T: Poolable> ArcHandle<T> {
     /// #    }
     /// # }
     /// #
-    /// # impl Poolable for Monster {
+    /// # impl Recyclable for Monster {
     /// #   fn reinitialize(&mut self) {
     /// #       self.level = 1;
     /// #   }
@@ -273,12 +311,13 @@ impl<T: Poolable> ArcHandle<T> {
         self.0.is_poisoned()
     }
 
-    fn drop_handle(&mut self) -> Result<(), PoisonError<RwLockWriteGuard<T>>> {
+    fn drop_handle(&mut self) -> Result<(), TryLockError<RwLockWriteGuard<T>>> {
         // Outer(Inner) -> Outer is dropped, then Inner is dropped.
         // That's why we check if the refcount is equal to 2 :
         // PoolObjectHandler is dropped (refcount == 2), then Rc<RefCell<T>> is dropped (refcount == 1 -> only the pool has a ref to the data).
         if Arc::strong_count(self.as_ref()) == 2 {
-            match self.0.write() {
+            //We use try_write. Using write is a blocking operations, and this function is called from the destructor.
+            match self.0.try_write() {
                 Ok(mut guard) => {
                     (*guard).reinitialize();
                 }
@@ -291,7 +330,7 @@ impl<T: Poolable> ArcHandle<T> {
     }
 }
 
-impl<T: Poolable> Drop for ArcHandle<T> {
+impl<T: Recyclable> Drop for ArcHandle<T> {
     /// This `Drop` implementation allow us to reinitialize the `Poolable` object
     /// if the strong reference count of the inner `Arc` is equal to 2.
     ///
@@ -302,7 +341,7 @@ impl<T: Poolable> Drop for ArcHandle<T> {
     }
 }
 
-impl<T: Poolable> Clone for ArcHandle<T> {
+impl<T: Recyclable> Clone for ArcHandle<T> {
     fn clone(&self) -> Self {
         ArcHandle(self.0.clone())
     }

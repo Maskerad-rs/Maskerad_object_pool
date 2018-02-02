@@ -7,10 +7,9 @@
 
 use errors::{PoolError, PoolResult};
 use refcounted_pool_handler::RcHandle;
-use pool_object::Poolable;
+use pool_object::Recyclable;
 
 use std::rc::Rc;
-use std::cell::RefCell;
 
 /// A wrapper around a vector of `RcHandle<T>`.
 ///
@@ -18,7 +17,7 @@ use std::cell::RefCell;
 ///
 /// ```rust
 /// use maskerad_object_pool::RcPool;
-/// # use maskerad_object_pool::Poolable;
+/// # use maskerad_object_pool::Recyclable;
 /// # use std::error::Error;
 /// #
 /// # struct Monster {
@@ -35,7 +34,7 @@ use std::cell::RefCell;
 /// #    }
 /// # }
 /// #
-/// # impl Poolable for Monster {
+/// # impl Recyclable for Monster {
 /// #   fn reinitialize(&mut self) {
 /// #       self.level = 1;
 /// #   }
@@ -79,17 +78,16 @@ use std::cell::RefCell;
 /// ```
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct RcPool<T: Poolable>(Vec<RcHandle<T>>);
+pub struct RcPool<T: Recyclable>(Vec<RcHandle<T>>);
 
-impl<T: Poolable> RcPool<T> {
+impl<T: Recyclable> RcPool<T> {
     /// Create an object pool with the given capacity, and instantiate the given number of object.
     ///
     /// # Example
     ///
     /// ```rust
     /// use maskerad_object_pool::RcPool;
-    /// # use maskerad_object_pool::Poolable;
-    /// # use std::error::Error;
+    /// # use maskerad_object_pool::Recyclable;
     /// #
     /// # struct Monster {
     /// # hp :u32,
@@ -105,7 +103,7 @@ impl<T: Poolable> RcPool<T> {
     /// #    }
     /// # }
     /// #
-    /// # impl Poolable for Monster {
+    /// # impl Recyclable for Monster {
     /// #   fn reinitialize(&mut self) {
     /// #       self.level = 1;
     /// #   }
@@ -128,14 +126,61 @@ impl<T: Poolable> RcPool<T> {
         let mut objects = Vec::with_capacity(size);
 
         for _ in 0..size {
-            objects.push(RcHandle(Rc::new(RefCell::new(op()))));
+            objects.push(RcHandle::new(op()));
         }
 
         RcPool(objects)
     }
 
     /// Returns an immutable slice of the vector of `RcHandle<T>`
-    pub fn pool(&self) -> &[RcHandle<T>] {
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use maskerad_object_pool::RcPool;
+    /// # use maskerad_object_pool::Recyclable;
+    /// #
+    /// # struct Monster {
+    /// # hp :u32,
+    /// # pub level: u32,
+    /// # }
+    /// #
+    /// # impl Default for Monster {
+    /// #    fn default() -> Self {
+    /// #        Monster {
+    /// #            hp: 10,
+    /// #            level: 10,
+    /// #        }
+    /// #    }
+    /// # }
+    /// #
+    /// # impl Recyclable for Monster {
+    /// #   fn reinitialize(&mut self) {
+    /// #       self.level = 1;
+    /// #   }
+    /// # }
+    /// #
+    /// # impl Monster {
+    /// #    pub fn level_up(&mut self) {
+    /// #        self.level += 1;
+    /// #    }
+    /// # }
+    /// let pool = RcPool::with_capacity(10, || {
+    ///     Monster::default()
+    /// });
+    ///
+    /// //The pool slice can be useful if you need tou iterate over the collection.
+    /// let nb_lvl_5_monsters = pool.pool_slice()
+    /// .iter()
+    /// .filter(|handle| {
+    ///     handle.borrow().level == 5
+    /// })
+    /// .count();
+    ///
+    /// //All monsters begin at level 10, there is no monsters at level 5.
+    /// assert_eq!(nb_lvl_5_monsters, 0);
+    /// ```
+    pub fn pool_slice(&self) -> &[RcHandle<T>] {
         &self.0
     }
 
@@ -149,7 +194,7 @@ impl<T: Poolable> RcPool<T> {
     ///
     /// ```rust
     /// use maskerad_object_pool::RcPool;
-    /// # use maskerad_object_pool::Poolable;
+    /// # use maskerad_object_pool::Recyclable;
     /// # use std::error::Error;
     /// #
     /// # struct Monster {
@@ -166,7 +211,7 @@ impl<T: Poolable> RcPool<T> {
     /// #    }
     /// # }
     /// #
-    /// # impl Poolable for Monster {
+    /// # impl Recyclable for Monster {
     /// #   fn reinitialize(&mut self) {
     /// #       self.level = 1;
     /// #   }
@@ -194,7 +239,7 @@ impl<T: Poolable> RcPool<T> {
     /// # }
     /// ```
     pub fn create_strict(&self) -> PoolResult<RcHandle<T>> {
-        match self.pool()
+        match self.pool_slice()
             .iter()
             .find(|obj| Rc::strong_count(obj.as_ref()) == 1)
         {
@@ -211,8 +256,7 @@ impl<T: Poolable> RcPool<T> {
     ///
     /// ```rust
     /// use maskerad_object_pool::RcPool;
-    /// # use maskerad_object_pool::Poolable;
-    /// # use std::error::Error;
+    /// # use maskerad_object_pool::Recyclable;
     /// #
     /// # struct Monster {
     /// # hp :u32,
@@ -228,7 +272,7 @@ impl<T: Poolable> RcPool<T> {
     /// #    }
     /// # }
     /// #
-    /// # impl Poolable for Monster {
+    /// # impl Recyclable for Monster {
     /// #   fn reinitialize(&mut self) {
     /// #       self.level = 1;
     /// #   }
@@ -239,8 +283,6 @@ impl<T: Poolable> RcPool<T> {
     /// #        self.level += 1;
     /// #    }
     /// # }
-    /// #
-    /// # fn try_main() -> Result<(), Box<Error>> {
     /// let pool = RcPool::with_capacity(1, || {
     ///     Monster::default()
     /// });
@@ -255,16 +297,9 @@ impl<T: Poolable> RcPool<T> {
     ///         // do something, or nothing.
     ///     },
     /// }
-    /// #
-    /// #   Ok(())
-    /// # }
-    /// #
-    /// # fn main() {
-    /// #   try_main().unwrap();
-    /// # }
     /// ```
     pub fn create(&self) -> Option<RcHandle<T>> {
-        match self.pool()
+        match self.pool_slice()
             .iter()
             .find(|obj| Rc::strong_count(obj.as_ref()) == 1)
         {
@@ -274,11 +309,12 @@ impl<T: Poolable> RcPool<T> {
     }
 
     /// Return the number of non-used `RcHandle<T>` in the pool.
+    ///
     /// # Example
+    ///
     /// ```rust
     /// use maskerad_object_pool::RcPool;
-    /// # use maskerad_object_pool::Poolable;
-    /// # use std::error::Error;
+    /// # use maskerad_object_pool::Recyclable;
     /// #
     /// # struct Monster {
     /// # hp :u32,
@@ -294,7 +330,7 @@ impl<T: Poolable> RcPool<T> {
     /// #    }
     /// # }
     /// #
-    /// # impl Poolable for Monster {
+    /// # impl Recyclable for Monster {
     /// #   fn reinitialize(&mut self) {
     /// #       self.level = 1;
     /// #   }
@@ -315,13 +351,51 @@ impl<T: Poolable> RcPool<T> {
     /// assert_eq!(pool.nb_unused(), 1);
     /// ```
     pub fn nb_unused(&self) -> usize {
-        self.pool()
+        self.pool_slice()
             .iter()
             .filter(|obj| Rc::strong_count(obj.as_ref()) == 1)
             .count()
     }
 
     /// Returns the maximum capacity of the vector of `RcHandle<T>`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use maskerad_object_pool::RcPool;
+    /// # use maskerad_object_pool::Recyclable;
+    /// #
+    /// # struct Monster {
+    /// # hp :u32,
+    /// # pub level: u32,
+    /// # }
+    /// #
+    /// # impl Default for Monster {
+    /// #    fn default() -> Self {
+    /// #        Monster {
+    /// #            hp: 10,
+    /// #            level: 10,
+    /// #        }
+    /// #    }
+    /// # }
+    /// #
+    /// # impl Recyclable for Monster {
+    /// #   fn reinitialize(&mut self) {
+    /// #       self.level = 1;
+    /// #   }
+    /// # }
+    /// #
+    /// # impl Monster {
+    /// #    pub fn level_up(&mut self) {
+    /// #        self.level += 1;
+    /// #    }
+    /// # }
+    ///
+    /// let pool = RcPool::with_capacity(2, || {
+    ///     Monster::default()
+    /// });
+    /// assert_eq!(pool.capacity(), 2);
+    /// ```
     pub fn capacity(&self) -> usize {
         self.0.capacity()
     }
@@ -331,7 +405,7 @@ impl<T: Poolable> RcPool<T> {
 mod refcounted_objectpool_tests {
     use super::*;
     use std::rc::Rc;
-    use pool_object::Poolable;
+    use pool_object::Recyclable;
 
     #[derive(Ord, PartialOrd, Eq, PartialEq, Debug)]
     pub struct Monster {
@@ -364,7 +438,7 @@ mod refcounted_objectpool_tests {
         }
     }
 
-    impl Poolable for Monster {
+    impl Recyclable for Monster {
         fn reinitialize(&mut self) {
             self.level = 1;
             self.hp = 1;
@@ -380,7 +454,7 @@ mod refcounted_objectpool_tests {
     #[test]
     fn test_is_used_at_initialization() {
         let monster_pool = RcPool::with_capacity(14, || Monster::default());
-        for monster in monster_pool.pool().iter() {
+        for monster in monster_pool.pool_slice().iter() {
             assert_eq!(Rc::strong_count(monster.as_ref()), 1);
         }
     }
@@ -407,7 +481,7 @@ mod refcounted_objectpool_tests {
         }
         assert_eq!(monster_pool.nb_unused(), 9);
         let nb_monster_with_1_ref = monster_pool
-            .pool()
+            .pool_slice()
             .iter()
             .filter(|obj| Rc::strong_count(obj.as_ref()) == 1)
             .count();
@@ -415,7 +489,7 @@ mod refcounted_objectpool_tests {
         assert_eq!(nb_monster_with_1_ref, 9);
 
         let nb_monster_with_1_hp = monster_pool
-            .pool()
+            .pool_slice()
             .iter()
             .filter(|obj| obj.borrow_mut().hp() == 1)
             .count();
@@ -440,7 +514,7 @@ mod refcounted_objectpool_tests {
         monster.borrow_mut().level_up();
         assert_eq!(monster.borrow_mut().level(), 11);
         let nb_monster_lvl_11 = monster_pool
-            .pool()
+            .pool_slice()
             .iter()
             .filter(|obj| (**obj).borrow_mut().level() > 10)
             .count();

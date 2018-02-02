@@ -7,7 +7,7 @@
 
 use std::rc::Rc;
 use std::cell::{BorrowError, BorrowMutError, Ref, RefCell, RefMut};
-use pool_object::Poolable;
+use pool_object::Recyclable;
 
 /// A wrapper around a `Rc` pointer to a `Poolable` object with interior mutability.
 ///
@@ -20,15 +20,21 @@ use pool_object::Poolable;
 /// if its strong reference count is equal to two. If it is the case, the object is reinitialized, the inner `Rc` is dropped and the strong
 /// reference count decrease to 1, meaning that the only structure holding a reference is the `RcPool` itself.
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub struct RcHandle<T: Poolable>(pub Rc<RefCell<T>>);
+pub struct RcHandle<T: Recyclable>(pub Rc<RefCell<T>>);
 
-impl<T: Poolable> AsRef<Rc<RefCell<T>>> for RcHandle<T> {
+impl<T: Recyclable> AsRef<Rc<RefCell<T>>> for RcHandle<T> {
     fn as_ref(&self) -> &Rc<RefCell<T>> {
         &self.0
     }
 }
 
-impl<T: Poolable> RcHandle<T> {
+impl<T: Recyclable> RcHandle<T> {
+    /// Creates a new `RcHandle` from a `Recyclable` object.
+    #[doc(hidden)]
+    pub fn new(item: T) -> Self {
+        RcHandle(Rc::new(RefCell::new(item)))
+    }
+
     /// Immutably borrows the wrapped value.
     ///
     /// Refer to the [RefCell::borrow](https://doc.rust-lang.org/std/cell/struct.RefCell.html#method.borrow)
@@ -43,7 +49,7 @@ impl<T: Poolable> RcHandle<T> {
     ///
     /// ```rust
     /// use maskerad_object_pool::RcPool;
-    /// # use maskerad_object_pool::Poolable;
+    /// # use maskerad_object_pool::Recyclable;
     /// # use std::error::Error;
     /// #
     /// # struct Monster {
@@ -60,7 +66,7 @@ impl<T: Poolable> RcHandle<T> {
     /// #    }
     /// # }
     /// #
-    /// # impl Poolable for Monster {
+    /// # impl Recyclable for Monster {
     /// #   fn reinitialize(&mut self) {
     /// #       self.level = 1;
     /// #   }
@@ -100,7 +106,7 @@ impl<T: Poolable> RcHandle<T> {
     ///
     /// ```rust
     /// use maskerad_object_pool::RcPool;
-    /// # use maskerad_object_pool::Poolable;
+    /// # use maskerad_object_pool::Recyclable;
     /// # use std::error::Error;
     /// #
     /// # struct Monster {
@@ -117,7 +123,7 @@ impl<T: Poolable> RcHandle<T> {
     /// #    }
     /// # }
     /// #
-    /// # impl Poolable for Monster {
+    /// # impl Recyclable for Monster {
     /// #   fn reinitialize(&mut self) {
     /// #       self.level = 1;
     /// #   }
@@ -164,7 +170,7 @@ impl<T: Poolable> RcHandle<T> {
     ///
     /// ```rust
     /// use maskerad_object_pool::RcPool;
-    /// # use maskerad_object_pool::Poolable;
+    /// # use maskerad_object_pool::Recyclable;
     /// # use std::error::Error;
     /// #
     /// # struct Monster {
@@ -181,7 +187,7 @@ impl<T: Poolable> RcHandle<T> {
     /// #    }
     /// # }
     /// #
-    /// # impl Poolable for Monster {
+    /// # impl Recyclable for Monster {
     /// #   fn reinitialize(&mut self) {
     /// #       self.level = 1;
     /// #   }
@@ -222,7 +228,7 @@ impl<T: Poolable> RcHandle<T> {
     ///
     /// ```rust
     /// use maskerad_object_pool::RcPool;
-    /// # use maskerad_object_pool::Poolable;
+    /// # use maskerad_object_pool::Recyclable;
     /// # use std::error::Error;
     /// #
     /// # struct Monster {
@@ -239,7 +245,7 @@ impl<T: Poolable> RcHandle<T> {
     /// #    }
     /// # }
     /// #
-    /// # impl Poolable for Monster {
+    /// # impl Recyclable for Monster {
     /// #   fn reinitialize(&mut self) {
     /// #       self.level = 1;
     /// #   }
@@ -281,7 +287,7 @@ impl<T: Poolable> RcHandle<T> {
     ///
     /// ```rust
     /// use maskerad_object_pool::RcPool;
-    /// # use maskerad_object_pool::Poolable;
+    /// # use maskerad_object_pool::Recyclable;
     /// # use std::error::Error;
     /// #
     /// # struct Monster {
@@ -298,7 +304,7 @@ impl<T: Poolable> RcHandle<T> {
     /// #    }
     /// # }
     /// #
-    /// # impl Poolable for Monster {
+    /// # impl Recyclable for Monster {
     /// #   fn reinitialize(&mut self) {
     /// #       self.level = 1;
     /// #   }
@@ -330,7 +336,7 @@ impl<T: Poolable> RcHandle<T> {
     }
 }
 
-impl<T: Poolable> Drop for RcHandle<T> {
+impl<T: Recyclable> Drop for RcHandle<T> {
     /// This `Drop` implementation allow us to reinitialize the `Poolable` object
     /// if the strong reference count of the inner `Rc` is equal to 2.
     ///
@@ -346,7 +352,7 @@ impl<T: Poolable> Drop for RcHandle<T> {
     }
 }
 
-impl<T: Poolable> Clone for RcHandle<T> {
+impl<T: Recyclable> Clone for RcHandle<T> {
     fn clone(&self) -> Self {
         RcHandle(self.0.clone())
     }
