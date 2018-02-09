@@ -124,6 +124,7 @@ impl<T: Recyclable> ArcPool<T> {
     where
         F: Fn() -> T,
     {
+        debug!("Creating an ArcPool with a size of {} ArcHandles", size);
         let mut objects = Vec::with_capacity(size);
 
         for _ in 0..size {
@@ -180,6 +181,7 @@ impl<T: Recyclable> ArcPool<T> {
     /// assert_eq!(nb_lvl_6_monsters, 0);
     /// ```
     pub fn pool_slice(&self) -> &[ArcHandle<T>] {
+        debug!("Getting an immutable slice of the vector containing all the ArcHandles.");
         &self.0
     }
 
@@ -238,14 +240,22 @@ impl<T: Recyclable> ArcPool<T> {
     /// # }
     /// ```
     pub fn create_strict(&self) -> PoolResult<ArcHandle<T>> {
+        debug!("The ArcPool is being asked an ArcHandle (strict).");
+        trace!("Iterating over all the ArcHandles...");
         match self.pool_slice()
             .iter()
             .find(|obj| Arc::strong_count(obj.as_ref()) == 1)
         {
-            Some(obj_ref) => Ok(obj_ref.clone()),
-            None => Err(PoolError::PoolError(String::from(
-                "The ArcPool is out of objects !",
-            ))),
+            Some(obj_ref) => {
+                trace!("An ArcHandle with a reference count of 1 has been found !");
+                Ok(obj_ref.clone())
+            },
+            None => {
+                error!("The ArcPool could not find an ArcHandle with a reference count of 1 !");
+                Err(PoolError::PoolError(String::from(
+                    "The ArcPool is out of objects !",
+                )))
+            },
         }
     }
 
@@ -298,12 +308,20 @@ impl<T: Recyclable> ArcPool<T> {
     /// }
     /// ```
     pub fn create(&self) -> Option<ArcHandle<T>> {
+        debug!("The ArcPool is being asked an ArcHandle.");
+        trace!("Iterating over all the ArcHandles...");
         match self.pool_slice()
             .iter()
             .find(|obj| Arc::strong_count(obj.as_ref()) == 1)
         {
-            Some(obj_ref) => Some(obj_ref.clone()),
-            None => None,
+            Some(obj_ref) => {
+                trace!("An ArcHandle with a reference count of 1 has been found !");
+                Some(obj_ref.clone())
+            },
+            None => {
+                trace!("The ArcPool could not find an ArcHandle with a reference count of 1.");
+                None
+            },
         }
     }
 
@@ -349,6 +367,8 @@ impl<T: Recyclable> ArcPool<T> {
     /// assert_eq!(pool.nb_unused(), 1);
     /// ```
     pub fn nb_unused(&self) -> usize {
+        debug!("Getting the number of unused ArcHandles in the ArcPool.");
+        trace!("Iterating over all the ArcHandles...");
         self.pool_slice()
             .iter()
             .filter(|obj| Arc::strong_count(obj.as_ref()) == 1)
@@ -394,6 +414,7 @@ impl<T: Recyclable> ArcPool<T> {
     /// assert_eq!(pool.capacity(), 2);
     /// ```
     pub fn capacity(&self) -> usize {
+        debug!("Getting the number of ArcHandle contained in the ArcPool.");
         self.0.capacity()
     }
 }

@@ -32,6 +32,7 @@ impl<T: Recyclable> RcHandle<T> {
     /// Creates a new `RcHandle` from a `Recyclable` object.
     #[doc(hidden)]
     pub fn new(item: T) -> Self {
+        debug!("Creating a RcHandle.");
         RcHandle(Rc::new(RefCell::new(item)))
     }
 
@@ -94,6 +95,7 @@ impl<T: Recyclable> RcHandle<T> {
     /// # }
     /// ```
     pub fn borrow(&self) -> Ref<T> {
+        debug!("Borrowing an immutable reference to the inner object.");
         self.0.borrow()
     }
 
@@ -153,6 +155,7 @@ impl<T: Recyclable> RcHandle<T> {
     /// # }
     /// ```
     pub fn try_borrow(&self) -> Result<Ref<T>, BorrowError> {
+        debug!("Trying to borrow an immutable reference to the inner object.");
         self.0.try_borrow()
     }
 
@@ -216,6 +219,7 @@ impl<T: Recyclable> RcHandle<T> {
     /// # }
     /// ```
     pub fn borrow_mut(&self) -> RefMut<T> {
+        debug!("Borrowing a mutable reference to the inner object.");
         self.0.borrow_mut()
     }
 
@@ -275,6 +279,7 @@ impl<T: Recyclable> RcHandle<T> {
     /// # }
     /// ```
     pub fn try_borrow_mut(&self) -> Result<RefMut<T>, BorrowMutError> {
+        debug!("Trying to borrow a mutable reference to the inner object.");
         self.0.try_borrow_mut()
     }
 
@@ -332,6 +337,7 @@ impl<T: Recyclable> RcHandle<T> {
     /// # }
     /// ```
     pub fn as_ptr(&self) -> *mut T {
+        debug!("Returning a raw pointer to the inner object.");
         self.0.as_ptr()
     }
 }
@@ -343,10 +349,12 @@ impl<T: Recyclable> Drop for RcHandle<T> {
     /// If it is the case, `T` is reinitialized, the inner `Rc` is dropped and the strong
     /// reference count is decreased to 1, meaning that the only structure holding a reference is the `RcPool` itself.
     fn drop(&mut self) {
+        trace!("The RcHandle is being dropped.");
         // Outer(Inner) -> Outer is dropped, then Inner is dropped.
         // That's why we check if the refcount is equal to 2 :
         // PoolObjectHandler is dropped (refcount == 2), then Rc<RefCell<T>> is dropped (refcount == 1 -> only the pool has a ref to the data).
         if Rc::strong_count(&self.0) == 2 {
+            trace!("The reference count of the RcHandle is equal to 2. Reinitializing the inner object.");
             self.0.borrow_mut().reinitialize();
         }
     }

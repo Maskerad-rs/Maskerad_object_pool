@@ -32,6 +32,7 @@ impl<T: Recyclable> ArcHandle<T> {
     /// Creates a new `ArcHandle` from a `Recyclable` object.
     #[doc(hidden)]
     pub fn new(item: T) -> Self {
+        debug!("Creating a new ArcHandle.");
         ArcHandle(Arc::new(RwLock::new(item)))
     }
 
@@ -99,6 +100,7 @@ impl<T: Recyclable> ArcHandle<T> {
     /// # }
     /// ```
     pub fn read(&self) -> LockResult<RwLockReadGuard<T>> {
+        debug!("Locking this ArcHandle to get read access to the inner object.");
         self.0.read()
     }
 
@@ -163,6 +165,7 @@ impl<T: Recyclable> ArcHandle<T> {
     /// # }
     /// ```
     pub fn try_read(&self) -> TryLockResult<RwLockReadGuard<T>> {
+        debug!("Trying to lock this ArcHandle to get read access to the inner object.");
         self.0.try_read()
     }
 
@@ -231,6 +234,7 @@ impl<T: Recyclable> ArcHandle<T> {
     /// # }
     /// ```
     pub fn write(&self) -> LockResult<RwLockWriteGuard<T>> {
+        debug!("Locking this ArcHandle to get write access to the inner object.");
         self.0.write()
     }
 
@@ -300,6 +304,7 @@ impl<T: Recyclable> ArcHandle<T> {
     /// # }
     /// ```
     pub fn try_write(&self) -> TryLockResult<RwLockWriteGuard<T>> {
+        debug!("Trying to lock this ArcHandle to get write access to the inner object.");
         self.0.try_write()
     }
 
@@ -308,20 +313,25 @@ impl<T: Recyclable> ArcHandle<T> {
     /// Refer to the [RwLock::is_poisoned](https://doc.rust-lang.org/std/sync/struct.RwLock.html#method.is_poisoned)
     /// method for more information.
     pub fn is_poisoned(&self) -> bool {
+        debug!("Checking the 'poisoned' state of the ArcHandle.");
         self.0.is_poisoned()
     }
 
     fn drop_handle(&mut self) -> Result<(), TryLockError<RwLockWriteGuard<T>>> {
+        trace!("Dropping the ArcHandle.");
         // Outer(Inner) -> Outer is dropped, then Inner is dropped.
         // That's why we check if the refcount is equal to 2 :
         // PoolObjectHandler is dropped (refcount == 2), then Rc<RefCell<T>> is dropped (refcount == 1 -> only the pool has a ref to the data).
         if Arc::strong_count(self.as_ref()) == 2 {
+            trace!("The reference count of the ArcHandle is equal to 2.");
             //We use try_write. Using write is a blocking operations, and this function is called from the destructor.
-            match self.0.try_write() {
+            match self.try_write() {
                 Ok(mut guard) => {
+                    trace!("The ArcHandle has been successfully locked with write access. Reinitializing the inner object.");
                     (*guard).reinitialize();
                 }
                 Err(error) => {
+                    error!("Could not lock the ArcHandle with write access !");
                     return Err(error);
                 }
             }

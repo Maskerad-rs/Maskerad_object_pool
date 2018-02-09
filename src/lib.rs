@@ -113,11 +113,13 @@
 //! # }
 //! ```
 
-#![doc(html_root_url = "https://doc.rs/maskerad_object_pool/0.2.2")]
+#![doc(html_root_url = "https://doc.rs/maskerad_object_pool/0.3.0")]
 
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate log;
 
 mod refcounted_pool_allocator;
 mod concurrent_pool_allocator;

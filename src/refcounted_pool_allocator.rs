@@ -123,6 +123,7 @@ impl<T: Recyclable> RcPool<T> {
     where
         F: Fn() -> T,
     {
+        debug!("Creating a RcPool with a size of {} RcHandle(s)", size);
         let mut objects = Vec::with_capacity(size);
 
         for _ in 0..size {
@@ -181,6 +182,7 @@ impl<T: Recyclable> RcPool<T> {
     /// assert_eq!(nb_lvl_5_monsters, 0);
     /// ```
     pub fn pool_slice(&self) -> &[RcHandle<T>] {
+        debug!("Getting an immutable slice of the vector containing all the RcHandles.");
         &self.0
     }
 
@@ -239,14 +241,22 @@ impl<T: Recyclable> RcPool<T> {
     /// # }
     /// ```
     pub fn create_strict(&self) -> PoolResult<RcHandle<T>> {
+        debug!("The RcPool is being asked a RcHandle (strict).");
+        trace!("Iterating over all the RcHandles...");
         match self.pool_slice()
             .iter()
             .find(|obj| Rc::strong_count(obj.as_ref()) == 1)
         {
-            Some(obj_ref) => Ok(obj_ref.clone()),
-            None => Err(PoolError::PoolError(String::from(
-                "The RcPool is out of objects !",
-            ))),
+            Some(obj_ref) => {
+                trace!("A RcHandle with a reference count of 1 has been found !");
+                Ok(obj_ref.clone())
+            },
+            None => {
+                error!("The RcPool could not find a RcHandle with a reference count of 1 !");
+                Err(PoolError::PoolError(String::from(
+                    "The RcPool is out of objects !",
+                )))
+            },
         }
     }
 
@@ -299,12 +309,20 @@ impl<T: Recyclable> RcPool<T> {
     /// }
     /// ```
     pub fn create(&self) -> Option<RcHandle<T>> {
+        debug!("The pool is being asked a RcHandle.");
+        trace!("Iterating over all the RcHandles...");
         match self.pool_slice()
             .iter()
             .find(|obj| Rc::strong_count(obj.as_ref()) == 1)
         {
-            Some(obj_ref) => Some(obj_ref.clone()),
-            None => None,
+            Some(obj_ref) => {
+                trace!("An object with a reference count of 1 has been found !");
+                Some(obj_ref.clone())
+            },
+            None => {
+                trace!("The pool could not find an object with a reference count of 1.");
+                None
+            },
         }
     }
 
@@ -351,6 +369,8 @@ impl<T: Recyclable> RcPool<T> {
     /// assert_eq!(pool.nb_unused(), 1);
     /// ```
     pub fn nb_unused(&self) -> usize {
+        debug!("Getting the number of unused RcHandles in the RcPool.");
+        trace!("Iterating over all the RcHandles...");
         self.pool_slice()
             .iter()
             .filter(|obj| Rc::strong_count(obj.as_ref()) == 1)
@@ -397,6 +417,7 @@ impl<T: Recyclable> RcPool<T> {
     /// assert_eq!(pool.capacity(), 2);
     /// ```
     pub fn capacity(&self) -> usize {
+        debug!("Getting the number of RcHandle contained in the RcPool.");
         self.0.capacity()
     }
 }
